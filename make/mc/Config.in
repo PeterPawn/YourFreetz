@@ -106,4 +106,8 @@ config FREETZ_PACKAGE_MC_WITH_SYNTAX
 	bool "Include syntax files"
 	default y
 
+config FREETZ_PACKAGE_MC_PREFIX
+	string "--prefix value for configure call"
+	depends on ! EXTERNAL_FREETZ_PACKAGE_MC
+
 endmenu
