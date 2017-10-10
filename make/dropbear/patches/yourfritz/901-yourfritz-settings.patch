@@ -1,0 +1,153 @@
+--- localoptions.h
++++ localoptions.h
+@@ -6,25 +6,104 @@
+ #define RSA_PRIV_FILENAME "/mod/etc/ssh/rsa_host_key"
+ #define ECDSA_PRIV_FILENAME "/mod/etc/ssh/ecdsa_host_key"
+ #else
++#ifndef DROPBEAR_YOURFRITZ
+ #define DSS_PRIV_FILENAME "/var/tmp/dss_host_key"
+ #define RSA_PRIV_FILENAME "/var/tmp/rsa_host_key"
+ #define ECDSA_PRIV_FILENAME "/var/tmp/ecdsa_host_key"
++#else
++#define RSA_PRIV_FILENAME "/var/flash/websrv_ssl_key.pem"
++#endif
+ #endif
+ 
++#ifdef DROPBEAR_YOURFRITZ
++#define DROPBEAR_SFTPSERVER 1
++#define SFTPSERVER_PATH "/var/custom/usr/bin/sftp-server"
++#else
++#define DROPBEAR_SFTPSERVER 1
+ #define SFTPSERVER_PATH "/usr/lib/sftp-server"
++#endif
+ 
+ #ifndef DB_NONFREETZ
+ #define DROPBEAR_PATH_SSH_PROGRAM "/usr/bin/ssh"
+ #else
++#ifdef DROPBEAR_YOURFRITZ
++#define DROPBEAR_PATH_SSH_PROGRAM "/var/custom/usr/bin/ssh"
++#else
+ /* ssh is expected to be in PATH */
+ #define DROPBEAR_PATH_SSH_PROGRAM "ssh"
+ #endif
++#endif
+ 
+ #define MAX_UNAUTH_PER_IP 2  /* limited by freetz, default 5 */
+-#define MAX_UNAUTH_CLIENTS 5 /* limited by freetz, default 30 */
++#define MAX_UNAUTH_CLIENTS 2 /* limited by freetz, default 30 */
+ #define MAX_AUTH_TRIES 2     /* limited by freetz, default 10 */
+ #define AUTH_TIMEOUT 60      /* limited by freetz down to 60 seconds, default 300 */
+ 
++#ifdef DROPBEAR_YOURFRITZ
++#define DEFAULT_PATH "/var/custom/bin:/bin:/var/custom/usr/bin:/usr/bin:/var/custom/sbin:/sbin:/var/custom/usr/sbin:/usr/sbin"
++#else
+ #define DEFAULT_PATH "/usr/bin:/bin:/var/bin"
++#endif
++
++#ifdef DROPBEAR_YOURFRITZ
++#define DEBUG_TRACE 1
++#define DROPBEAR_SMALL_CODE 0
++#define DROPBEAR_X11FWD 0
++#define DROPBEAR_CLI_LOCALTCPFWD 1
++#define DROPBEAR_CLI_REMOTETCPFWD 1
++#define DROPBEAR_SVR_LOCALTCPFWD 1
++#define DROPBEAR_SVR_REMOTETCPFWD 1
++#define DROPBEAR_SVR_AGENTFWD 0
++#define DROPBEAR_CLI_AGENTFWD 0
++#define DROPBEAR_CLI_PROXYCMD 1
++#define DROPBEAR_CLI_NETCAT 1
++#define DROPBEAR_USER_ALGO_LIST 1
++#define DROPBEAR_AES128 1
++#define DROPBEAR_3DES 0
++#define DROPBEAR_AES256 1
++#define DROPBEAR_TWOFISH256 0
++#define DROPBEAR_TWOFISH128 0
++#define DROPBEAR_ENABLE_CBC_MODE 0
++#define DROPBEAR_ENABLE_CTR_MODE 1
++#define DROPBEAR_SHA1_HMAC 1
++#define DROPBEAR_SHA1_96_HMAC 0
++#define DROPBEAR_SHA2_256_HMAC 1
++#define DROPBEAR_RSA 1
++#define DROPBEAR_DSS 0
++#define DROPBEAR_ECDSA 0
++#define DROPBEAR_DEFAULT_RSA_SIZE 2048
++#define DROPBEAR_DH_GROUP14_SHA1 1
++#define DROPBEAR_DH_GROUP14_SHA256 1
++#define DROPBEAR_DH_GROUP16 0
++#define DROPBEAR_CURVE25519 1
++#define DROPBEAR_ECDH 1
++#define DROPBEAR_DH_GROUP1 1
++#define DROPBEAR_DH_GROUP1_CLIENTONLY 1
++#define DROPBEAR_ZLIB_WINDOW_BITS 15 
++#define DO_HOST_LOOKUP 0
++#define DO_MOTD 0
++#define MOTD_FILENAME "/var/custom/etc/motd"
++#define DROPBEAR_DELAY_HOSTKEY 0
++#define DROPBEAR_SVR_PASSWORD_AUTH 0
++#define DROPBEAR_SVR_PAM_AUTH 0
++#define DROPBEAR_SVR_PUBKEY_AUTH 1
++#define DROPBEAR_SVR_PUBKEY_OPTIONS 1
++#define DROPBEAR_CLI_PASSWORD_AUTH 1
++#define DROPBEAR_CLI_PUBKEY_AUTH 1
++#define DROPBEAR_DEFAULT_CLI_AUTHKEY "/var/flash/websrv_ssl_key.pem"
++#define DROPBEAR_USE_PASSWORD_ENV 1
++#define DROPBEAR_CLI_ASKPASS_HELPER 0
++#define DROPBEAR_CLI_IMMEDIATE_AUTH 0
++#define DROPBEAR_USE_PRNGD 0
++#define DROPBEAR_PRNGD_SOCKET "/var/run/dropbear-rng"
++#define DROPBEAR_PIDFILE "/var/run/dropbear.pid"
++#define LOG_COMMANDS 0
++#define DEFAULT_RECV_WINDOW 24576
++#define RECV_MAX_PAYLOAD_LEN 32768
++#define TRANS_MAX_PAYLOAD_LEN 16384
++#define DEFAULT_KEEPALIVE 10
++#define DEFAULT_KEEPALIVE_LIMIT 3
++#define DEFAULT_IDLE_TIMEOUT 0
++#endif
+ 
+ #endif
+--- sysoptions.h
++++ sysoptions.h
+@@ -3,8 +3,12 @@
+  * This file is only included from options.h
+  *******************************************************************/
+ 
++#ifdef DROPBEAR_YOURFRITZ
++#define DROPBEAR_VERSION_SUFFIX "-yourfritz"
++#endif
++
+ #ifndef DROPBEAR_VERSION
+-#define DROPBEAR_VERSION "2019.78"
++#define DROPBEAR_VERSION "2019.78" DROPBEAR_VERSION_SUFFIX
+ #endif
+ 
+ #define LOCAL_IDENT "SSH-2.0-dropbear_" DROPBEAR_VERSION
+@@ -13,14 +17,14 @@
+ /* Spec recommends after one hour or 1 gigabyte of data. One hour
+  * is a bit too verbose, so we try 8 hours */
+ #ifndef KEX_REKEY_TIMEOUT
+-#define KEX_REKEY_TIMEOUT (3600 * 8)
++#define KEX_REKEY_TIMEOUT (3600)
+ #endif
+ #ifndef KEX_REKEY_DATA
+ #define KEX_REKEY_DATA (1<<30) /* 2^30 == 1GB, this value must be < INT_MAX */
+ #endif
+ /* Close connections to clients which haven't authorised after AUTH_TIMEOUT */
+ #ifndef AUTH_TIMEOUT
+-#define AUTH_TIMEOUT 300 /* we choose 5 minutes */
++#define AUTH_TIMEOUT 60 /* we choose 5 minutes */
+ #endif
+ 
+ #define DROPBEAR_SVR_PUBKEY_OPTIONS_BUILT ((DROPBEAR_SVR_PUBKEY_AUTH) && (DROPBEAR_SVR_PUBKEY_OPTIONS))
+@@ -109,9 +113,9 @@
+ #endif
+ 
+ /* might be needed for compatibility with very old implementations */
+-#ifndef DROPBEAR_MD5_HMAC
++//#ifndef DROPBEAR_MD5_HMAC
+ #define DROPBEAR_MD5_HMAC 0
+-#endif
++//#endif
+ 
+ /* Twofish counter mode is disabled by default because it 
+ has not been tested for interoperability with other SSH implementations.
