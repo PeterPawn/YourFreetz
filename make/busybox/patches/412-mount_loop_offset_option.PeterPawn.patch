@@ -1,0 +1,66 @@
+--- util-linux/mount.c
++++ util-linux/mount.c
+@@ -153,6 +153,7 @@
+ //usage:     "\n-o OPT:"
+ //usage:	IF_FEATURE_MOUNT_LOOP(
+ //usage:     "\n	loop		Ignored (loop devices are autodetected)"
++//usage:     "\n	offset=OFS	The data start is moved OFS bytes into the specified file"
+ //usage:	)
+ //usage:	IF_FEATURE_MOUNT_FLAGS(
+ //usage:     "\n	[a]sync		Writes are [a]synchronous"
+@@ -1892,6 +1893,7 @@
+ 	int rc = -1;
+ 	unsigned long vfsflags;
+ 	char *loopFile = NULL, *filteropts = NULL;
++	const char *offsetString = "offset=\0";
+ 	llist_t *fl = NULL;
+ 	struct stat st;
+ 
+@@ -2026,9 +2028,38 @@
+ 	) {
+ 		// Do we need to allocate a loopback device for it?
+ 		if (ENABLE_FEATURE_MOUNT_LOOP && S_ISREG(st.st_mode)) {
++			long long loopOffset = 0; // no offset specified
++			char *offsetOption;
++
+ 			loopFile = bb_simplify_path(mp->mnt_fsname);
+ 			mp->mnt_fsname = NULL; // will receive malloced loop dev name
+ 
++			// handle 'offset' option for loop device mounts
++			if (filteropts && (offsetOption = strstr(filteropts, offsetString))) {
++				// it's only our offsetString, if preceeded by comma or we're
++				// at the very beginning of "filteropts"
++				if (offsetOption == filteropts || *(offsetOption - 1) == ',') {
++					char *nextOption;
++					// no further check for valid value is performed here,
++					// offset stays 0 if it's invalid - but we remove this
++					// option here anyway, other checks are done already
++					if ((nextOption = strchr(offsetOption, ','))) {
++						// xatoull would take a ',' as part of the number
++						// and gets into a fuss about any non-numeric
++						// character following this one
++						*(nextOption++) = '\0';
++						loopOffset = xatoull(offsetOption + strlen(offsetString));
++						strcpy(offsetOption, nextOption);
++					}
++					else { // last option, simply truncate the string
++						loopOffset = xatoull(offsetOption + strlen(offsetString));
++						nextOption = offsetOption - 1;
++						if (offsetOption == filteropts) nextOption = filteropts;
++						*nextOption  = '\0';
++					}
++				}
++			}
++
+ 			// mount always creates AUTOCLEARed loopdevs, so that umounting
+ 			// drops them without any code in the userspace.
+ 			// This happens since circa linux-2.6.25:
+@@ -2037,7 +2068,7 @@
+ 			// Subject: Allow auto-destruction of loop devices
+ 			loopfd = set_loop(&mp->mnt_fsname,
+ 					loopFile,
+-					0,
++					loopOffset,
+ 					((vfsflags & MS_RDONLY) ? BB_LO_FLAGS_READ_ONLY : 0)
+ 						| BB_LO_FLAGS_AUTOCLEAR
+ 			);
