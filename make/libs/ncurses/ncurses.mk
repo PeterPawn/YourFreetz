@@ -10,13 +10,18 @@ $(PKG)_LIBS_BUILD_DIR := $($(PKG)_LIBNAMES_LONG:%=$($(PKG)_DIR)/lib/%)
 $(PKG)_LIBS_STAGING_DIR := $($(PKG)_LIBNAMES_LONG:%=$(TARGET_TOOLCHAIN_STAGING_DIR)/usr/lib/%)
 $(PKG)_LIBS_TARGET_DIR := $($(PKG)_LIBNAMES_LONG:%=$($(PKG)_TARGET_DIR)/%)
 
+$(PKG)_DATADIR := $(FREETZ_SHARE_NCURSES_DATADIR)
+ifeq ($(strip $($(PKG)_DATADIR)),"")
+$(PKG)_DATADIR := /usr/share
+endif
+
 $(PKG)_TABSET_MARKER_FILE := std
-$(PKG)_TABSET_DIR := /usr/share/tabset
+$(PKG)_TABSET_DIR := $($(PKG)_DATADIR)/tabset
 $(PKG)_TABSET_STAGING_DIR := $(TARGET_TOOLCHAIN_STAGING_DIR)$($(PKG)_TABSET_DIR)
 $(PKG)_TABSET_TARGET_DIR := $($(PKG)_DEST_DIR)$($(PKG)_TABSET_DIR)
 
 $(PKG)_TERMINFO_MARKER_FILE := .installed
-$(PKG)_TERMINFO_DIR := /usr/share/terminfo
+$(PKG)_TERMINFO_DIR := $($(PKG)_DATADIR)/terminfo
 $(PKG)_TERMINFO_STAGING_DIR := $(TARGET_TOOLCHAIN_STAGING_DIR)$($(PKG)_TERMINFO_DIR)
 $(PKG)_TERMINFO_TARGET_DIR := $($(PKG)_DEST_DIR)$($(PKG)_TERMINFO_DIR)
 
@@ -44,8 +49,9 @@ $(PKG)_CONFIGURE_OPTIONS += --without-manpages
 $(PKG)_CONFIGURE_OPTIONS += --without-tests
 $(PKG)_CONFIGURE_OPTIONS += --with-normal
 $(PKG)_CONFIGURE_OPTIONS += --with-shared
-$(PKG)_CONFIGURE_OPTIONS += --with-terminfo-dirs="$($(PKG)_TERMINFO_DIR)"
-$(PKG)_CONFIGURE_OPTIONS += --with-default-terminfo-dir="$($(PKG)_TERMINFO_DIR)"
+$(PKG)_CONFIGURE_OPTIONS += --datadir=$($(PKG)_DATADIR)
+$(PKG)_CONFIGURE_OPTIONS += --with-terminfo-dirs=$($(PKG)_TERMINFO_DIR)
+$(PKG)_CONFIGURE_OPTIONS += --with-default-terminfo-dir=$($(PKG)_TERMINFO_DIR)
 
 $(PKG_SOURCE_DOWNLOAD)
 $(PKG_UNPACKED)
@@ -67,6 +73,7 @@ $($(PKG)_TABSET_STAGING_DIR)/$($(PKG)_TABSET_MARKER_FILE): $($(PKG)_DIR)/.config
 	$(SUBMAKE) -C $(NCURSES_DIR)/misc \
 		DESTDIR="$(TARGET_TOOLCHAIN_STAGING_DIR)" \
 		all install.data
+	mkdir -p $(dir $@); \
 	touch $@
 
 $($(PKG)_TERMINFO_STAGING_DIR)/$($(PKG)_TERMINFO_MARKER_FILE): $($(PKG)_TABSET_STAGING_DIR)/$($(PKG)_TABSET_MARKER_FILE)

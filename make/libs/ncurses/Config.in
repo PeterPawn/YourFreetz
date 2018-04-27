@@ -40,3 +40,11 @@ config FREETZ_LIB_libpanel
 		the visibility stack or pop to the top at runtime, the resulting book-
 		keeping can be tedious and difficult to get right. Hence the panels
 		library.
+
+config FREETZ_SHARE_NCURSES_DATADIR
+	string "shared data directory location"
+	depends on FREETZ_SHARE_terminfo
+	help
+		Here you may relocate the shared data needed by ncurses libraries, the
+		default location will be '/usr/share' and the sub-directories 'tabset'
+		and 'terminfo' are created there
