@@ -1,7 +1,7 @@
-$(call PKG_INIT_BIN, 0.2.7.6)
+$(call PKG_INIT_BIN, 0.3.2.10)
 $(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.gz
-$(PKG)_SOURCE_MD5:=cc19107b57136a68e8c563bf2d35b072
-$(PKG)_SITE:=http://www.torproject.org/dist
+$(PKG)_SOURCE_SHA256:=60df77c31dcf94fdd686c8ca8c34f3b70243b33a7344ecc0b719d5ca2617cbee
+$(PKG)_SITE:=https://www.torproject.org/dist
 
 $(PKG)_BINARY:=$($(PKG)_DIR)/src/or/tor
 $(PKG)_TARGET_BINARY:=$($(PKG)_DEST_DIR)/usr/sbin/tor
@@ -34,7 +34,7 @@ $(PKG)_REBUILD_SUBOPTS += FREETZ_PACKAGE_TOR_STATIC
 $(PKG)_PATCH_POST_CMDS += touch -t 200001010000.00 ./configure.ac;
 
 # add EXTRA_(C|LD)FLAGS
-$(PKG)_CONFIGURE_PRE_CMDS += find $(abspath $($(PKG)_DIR)) -name Makefile.in -type f -exec $(SED) -i -r -e 's,^(C|LD)FLAGS[ \t]*=[ \t]*@\1FLAGS@,& $$$$(EXTRA_\1FLAGS),' \{\} \+;
+$(PKG)_PATCH_POST_CMDS += $(call PKG_ADD_EXTRA_FLAGS,(C|LD)FLAGS)
 
 $(PKG)_EXTRA_CFLAGS  += -ffunction-sections -fdata-sections
 $(PKG)_EXTRA_LDFLAGS += -Wl,--gc-sections

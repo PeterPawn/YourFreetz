@@ -1,0 +1,41 @@
+commit 3e25c699dcd1931c8f46a350b0df18c41ce2f435
+Author: Eugene Rudoy <gene.devel@gmail.com>
+Date:   Wed Oct 18 22:31:24 2017 +0200
+
+    time applet: fix a build problem with kernel versions missing O_CLOEXEC symbol
+    
+    Kernel versions < 2.6.23 do not support/provide O_CLOEXEC symbol
+    causing the time applet not to compile:
+    
+     miscutils/time.c: In function 'time_main':
+     miscutils/time.c:445:28: error: 'O_CLOEXEC' undeclared (first use in this function)
+     miscutils/time.c:445:28: note: each undeclared identifier is reported
+      only once for each function it appears in
+    
+    Fix it by using close_on_exec_on function provided by libbb
+    instead of passing O_CLOEXEC flag to open.
+    
+    Signed-off-by: Eugene Rudoy <gene.devel@gmail.com>
+    
+    ---
+    
+     v2: remove unnecessary "if (output_fd >= 0)", xopen guarantees the returned
+         file descriptor to be valid, thanks to Xabier Oneca for pointing it out
+
+diff --git miscutils/time.c miscutils/time.c
+index f4f8149d3..c40d945e6 100644
+--- miscutils/time.c
++++ miscutils/time.c
+@@ -442,9 +442,10 @@ int time_main(int argc UNUSED_PARAM, char **argv)
+ 	if (opt & OPT_o) {
+ 		output_fd = xopen(output_filename,
+ 			(opt & OPT_a) /* append? */
+-			? (O_CREAT | O_WRONLY | O_CLOEXEC | O_APPEND)
+-			: (O_CREAT | O_WRONLY | O_CLOEXEC | O_TRUNC)
++			? (O_CREAT | O_WRONLY | O_APPEND)
++			: (O_CREAT | O_WRONLY | O_TRUNC)
+ 		);
++		close_on_exec_on(output_fd);
+ 	}
+ 
+ 	run_command(argv, &res);

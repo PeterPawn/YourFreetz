@@ -1,6 +1,6 @@
-$(call PKG_INIT_BIN, 11.21.2)
+$(call PKG_INIT_BIN, 11.25.3)
 $(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.gz
-$(PKG)_SOURCE_SHA1:=1817861e7032296ae5d9ae2874d152a92bfeb2b6
+$(PKG)_SOURCE_SHA1:=e9419263150010a9d1b8ff5cabc904bbbd7448eb
 $(PKG)_SITE:=http://downloads.asterisk.org/pub/telephony/asterisk/releases
 
 $(PKG)_CATEGORY:=Unstable
@@ -211,7 +211,7 @@ endif
 	touch $@
 
 $($(PKG)_DIR)/menuselect/menuselect: $($(PKG)_DIR)/.defaults_adjusted
-	(cd $(ASTERISK_DIR)/menuselect && ./configure)
+	(cd $(ASTERISK_DIR)/menuselect && USE_GTK2=no ./configure)
 	$(SUBMAKE1) -C $(ASTERISK_DIR)/menuselect
 
 $($(PKG)_DIR)/.configured: $($(PKG)_DIR)/.defaults_adjusted $($(PKG)_DIR)/menuselect/menuselect

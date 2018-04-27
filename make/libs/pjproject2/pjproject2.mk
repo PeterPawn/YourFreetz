@@ -3,7 +3,6 @@ $(PKG)_LIB_VERSION:=2
 $(PKG)_SOURCE:=pjproject-$($(PKG)_VERSION).tar.bz2
 $(PKG)_SOURCE_MD5:=6ed4bb7750c827dc1d881e209a3b62db
 $(PKG)_SITE:=http://www.pjsip.org/release/$($(PKG)_VERSION)
-$(PKG)_DIR:=$($(PKG)_SOURCE_DIR)/pjproject-$($(PKG)_VERSION)
 
 $(PKG)_INSTALL_SUBDIR:=_install
 
@@ -19,10 +18,6 @@ $(PKG)_HEADER_BUILD_DIR   := $($(PKG)_DIR)/$($(PKG)_INSTALL_SUBDIR)/usr/include/
 $(PKG)_HEADER_STAGING_DIR := $(TARGET_TOOLCHAIN_STAGING_DIR)/usr/include/pjlib.h
 
 $(PKG)_DEPENDS_ON += libgsm speex srtp e2fsprogs
-
-$(PKG)_REBUILD_SUBOPTS += FREETZ_PACKAGE_E2FSPROGS_STATIC
-
-$(PKG)_CONFIGURE_ENV += $(if $(FREETZ_PACKAGE_E2FSPROGS_STATIC),UUID_PIC_LIB=uuid_pic)
 
 $(PKG)_CONFIGURE_OPTIONS += --enable-shared
 

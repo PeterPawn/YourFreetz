@@ -24,6 +24,7 @@ Usage: $SELF [-u|-m|-p|-a] [-z] [-c <dir>] [-n] [-f] [-i <cfg>] [-d <dir>] <orig
     -p         pack firmware image
     -a         all: unpack, modify and pack firmware image
   special actions
+    -s         sign firmware image
     -z         zip file system into archive for USB/NFS root
     -c <dir>   copy file system to target directory for NFS/USB root (implies -z)
   options
@@ -56,15 +57,16 @@ done
 
 # Default values for unset command line parameters
 DOT_CONFIG="$(dirname "$0")/.config"
-DO_UNPACK=0; DO_MOD=0; DO_PACK=0
+DO_UNPACK=0; DO_MOD=0; DO_PACK=0; DO_SIGN=0
 FIRMWARE_NOCOMPILE=0; FORCE_PACK=0; DO_ZIP=0; COPY_FS_DIR=; DIR=
 
 # Parse command line parameters
-while getopts umpanfzc:i:d: opt; do
+while getopts umpsanfzc:i:d: opt; do
 	case "$opt" in
 		u) DO_UNPACK=1 ;;
 		m) DO_MOD=1 ;;
 		p) DO_PACK=1 ;;
+		s) DO_SIGN=1 ;;
 		a) DO_UNPACK=1; DO_MOD=1; DO_PACK=1 ;;
 		n) FIRMWARE_NOCOMPILE=1 ;;
 		f) FORCE_PACK=1 ;;
@@ -86,8 +88,12 @@ ABS_BASE_DIR="$(readlink -f "$BASE_DIR")"
 TOOLS_DIR="${ABS_BASE_DIR}/tools"
 
 # Include common helper functions (isFreetzType, echo*, error, modunsqfs* etc.)
-. "${TOOLS_DIR}/freetz_functions" ||
+source "${TOOLS_DIR}/freetz_functions" ||
 	(echo "cannot find script freetz_functions" >&2; exit 1)
+
+if [ "$DO_SIGN" -gt 0 -a $(($DO_PACK + $DO_ZIP)) -eq 0 ]; then
+	error 1 "Firmware signing without packing is not supported, please use PeterPawn's sign_image tool directly if you plan to sign some already existing .image file"
+fi
 
 # Initialise firmware image names
 FIRMWARE="$1"
@@ -122,7 +128,7 @@ mkdir -p "$DIR"
 SOURCE_SUBDIR="source"
 FIRMWARE_SUBDIR="firmware"
 FILESYSTEM_SUBDIR="filesystem"
-FILESYSTEM_CORE_SUBDIR="filesystem_core"
+FILESYSTEM_OUTER_SUBDIR="filesystem.outer"
 AVMPLUGINS_SUBDIR="plugins.image"
 EXTERNAL_SUBDIR="external"
 KERNEL_SUBDIR="kernel"
@@ -130,13 +136,7 @@ VARTAR_SUBDIR="var.tar"
 HTML_SUBDIR="usr/www"
 GRAPHICS_SUBDIR="graphics"
 
-# Kernel/SquashFS images contained in firmware
-KERNEL_IMAGE="var/tmp/kernel.image"
-FILESYSTEM_IMAGE="var/tmp/filesystem.image"
-FILESYSTEM_CORE_IMAGE="filesystem_core.squashfs"
-
-# More files created during firmware unpacking
-AVMPLUGINS_FILE="var/tmp/plugins.update"
+# (temporary) files created during firmware unpacking
 RAW_KERNEL_FILE="kernel.raw"
 RAW_HIDDEN_FILE="kernelsquashfs.raw"
 VARTAR_FILE="var.tar"
@@ -149,10 +149,6 @@ SHELL=$BASH
 FINDSQUASHFS_TOOL="find-squashfs"
 TICHKSUM_TOOL="tichksum"
 MAKEDEVS_TOOL="makedevs"
-UNSQUASHFS_TOOL="unsquashfs4-lzma-avm-be"
-MKSQUASHFS2_TOOL="mksquashfs2-lzma"
-MKSQUASHFS3_TOOL="mksquashfs3-multi"
-MKSQUASHFS_AVM_BE_TOOL="mksquashfs4-lzma-avm-be"
 DEBUGFS_TOOL="debugfs"
 EXTERNAL_TOOL="external"
 TAR_TOOL="tar"
@@ -211,45 +207,42 @@ VARTAR_AUX_DIR="${KERNEL_AUX_DIR}/${VARTAR_SUBDIR}"
 # Include config file, but do not override variables which are already defined
 # in the environment, e.g. via "make FREETZ_SOMETHING=y"
 sed -nr 's/^([^=]+)=(.*)/: ${\1:=\2}/p' "$DOT_CONFIG" > "$DOT_CONFIG.fwmod"
-. "$DOT_CONFIG.fwmod"
+source "$DOT_CONFIG.fwmod"
 rm "$DOT_CONFIG.fwmod"
 
 # Set default verbosity level, just in case none was defined in the (possibly
 # user-defined and minimal) config file
 : ${FREETZ_VERBOSITY_LEVEL:=0}
 
+# Kernel/SquashFS images contained in firmware
+KERNEL_IMAGE="${FREETZ_AVM_IMAGES_SUBDIR}/kernel.image"
+FILESYSTEM_IMAGE="${FREETZ_AVM_IMAGES_SUBDIR}/filesystem.image"
+FILESYSTEM_INNER_IMAGE="filesystem_core.squashfs"
+AVMPLUGINS_FILE="${FREETZ_AVM_IMAGES_SUBDIR}/plugins.update"
+
 # Use FREETZ_TARGET_CROSS to determine build tool paths
 NM="${ABS_BASE_DIR}/toolchain/target/bin/${FREETZ_TARGET_CROSS}nm"
 STRIP="${ABS_BASE_DIR}/toolchain/target/bin/${FREETZ_TARGET_CROSS}strip"
 
-# Options for (un)packing SquashFS
-UNSQUASHFS_OPTIONS="-no-progress -processors 1 -exit-on-decomp-error"
-MKSQUASHFS_OPTIONS="-all-root -info"
-
+# Tools and options for (un)packing SquashFS
+UNSQUASHFS_TOOL="unsquashfs4-avm-${FREETZ_AVM_SQUASHFS_ENDIANNESS}"
 UNSQUASHFS="${TOOLS_DIR}/${UNSQUASHFS_TOOL}"
-if [ "$FREETZ_KERNEL_VERSION_2_6_13" -a "$FREETZ_REPLACE_KERNEL" != "y" ]; then
-	MKSQUASHFS="${TOOLS_DIR}/${MKSQUASHFS2_TOOL}"
-else
-	if [ "${FREETZ_AVM_HAS_EXT2_SQUASHFS4_PACKAGING_SCHEME}" == "y" ]; then
-		MKSQUASHFS="${TOOLS_DIR}/${MKSQUASHFS_AVM_BE_TOOL}"
-	else
-		MKSQUASHFS="${TOOLS_DIR}/${MKSQUASHFS3_TOOL}"
-	fi
+UNSQUASHFS_OPTIONS="-no-progress -processors 1 -exit-on-error"
 
+MKSQUASHFS_TOOL[2]="mksquashfs2-lzma"
+MKSQUASHFS_TOOL[3]="mksquashfs3-multi"
+MKSQUASHFS_TOOL[4]="mksquashfs4-avm-${FREETZ_AVM_SQUASHFS_ENDIANNESS}"
+MKSQUASHFS="${TOOLS_DIR}/${MKSQUASHFS_TOOL[${FREETZ_SQUASHFS_VERSION}]}"
+MKSQUASHFS_OPTIONS="-all-root -info"
+if [ "${FREETZ_SQUASHFS_VERSION}" -gt 2 ]; then
 	MKSQUASHFS_OPTIONS+=" -no-progress -no-exports -no-sparse"
-	if [ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" != "y" ]; then
-		MKSQUASHFS_OPTIONS+=" -lzma1"
-	fi
 fi
-
-if [ "${FREETZ_AVM_HAS_EXT2_SQUASHFS4_PACKAGING_SCHEME}" != "y" ]; then
+if [ "${FREETZ_SQUASHFS_VERSION}" -lt 4 ]; then
 	MKSQUASHFS_OPTIONS+=" -noappend"
-	# Use FREETZ_TARGET_ARCH_BE to determine SquashFS endianness
-	if [ "$FREETZ_TARGET_ARCH_BE" == "y" ]; then
-		MKSQUASHFS_OPTIONS+=" -be"
-	else
-		MKSQUASHFS_OPTIONS+=" -le"
-	fi
+	MKSQUASHFS_OPTIONS+=" -${FREETZ_AVM_SQUASHFS_ENDIANNESS}"
+fi
+if [ "${FREETZ_SQUASHFS_VERSION}" -eq 3 -a "${FREETZ_AVM_SQUASHFS_COMPRESSION}" == "lzma" ]; then
+	MKSQUASHFS_OPTIONS+=" -lzma1"
 fi
 
 
@@ -330,7 +323,7 @@ fi
 ORG_DIR="${DIR}/original"
 FIRMWARE_DIR="${ORG_DIR}/${FIRMWARE_SUBDIR}"
 FILESYSTEM_DIR="${ORG_DIR}/${FILESYSTEM_SUBDIR}"
-FILESYSTEM_CORE_DIR="${ORG_DIR}/${FILESYSTEM_CORE_SUBDIR}"
+FILESYSTEM_OUTER_DIR="${ORG_DIR}/${FILESYSTEM_OUTER_SUBDIR}"
 KERNEL_DIR="${ORG_DIR}/${KERNEL_SUBDIR}"
 AVMPLUGINS_DIR="${KERNEL_DIR}/${AVMPLUGINS_SUBDIR}"
 VARTAR_DIR="${KERNEL_DIR}/${VARTAR_SUBDIR}"
@@ -339,8 +332,13 @@ HTML_DIR="${FILESYSTEM_DIR}/${HTML_SUBDIR}"
 RAW_KERNEL="${KERNEL_DIR}/${RAW_KERNEL_FILE}"
 RAW_FILESYSTEM="${KERNEL_DIR}/${RAW_HIDDEN_FILE}"
 KERNEL="${FIRMWARE_DIR}/${KERNEL_IMAGE}"
-if [ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ]; then
-	FILESYSTEM="$FILESYSTEM_CORE_DIR/$FILESYSTEM_CORE_IMAGE"
+if [ "${FREETZ_AVM_HAS_SEPARATE_FILESYSTEM_IMAGE}" == "y" ]; then
+	if [ "${FREETZ_AVM_HAS_INNER_OUTER_FILESYSTEM}" == "y" ]; then
+		FILESYSTEM="${FILESYSTEM_OUTER_DIR}/${FILESYSTEM_INNER_IMAGE}"
+		INNER_FS_PREFIX="inner-"
+	else
+		FILESYSTEM="${FIRMWARE_DIR}/${FILESYSTEM_IMAGE}"
+	fi
 else
 	FILESYSTEM="${RAW_FILESYSTEM}"
 fi
@@ -362,19 +360,14 @@ if [ "$DO_UNPACK" -gt 0 ]; then
 	mkdir "$FIRMWARE_DIR"
 
 	if [ "$FIRMWARE_EXTENSION" != "exe" ]; then
-		# Check and skip garbage
-		image_size="0x$(printf "%08X\n" $(stat -c %s "$FIRMWARE"))"
-		image_grbg="$($TOOLS_DIR/sfk hexfind "$FIRMWARE" _./var/_ | sed -n 's/.*hit at offset //p' |head -n1)"
-		[ "$grbg" != "0x0" ] && printf "Skipping %d Bytes garbage..." $grbg
 		# Unpack standard *.image file in tar format
-		tail -c $(( $image_size - $image_grbg )) "$FIRMWARE" | \
-		  "$TAR_GNU" -xif "$FIRMWARE" -C "$FIRMWARE_DIR" || untar_failed=1
+		"$TAR_GNU" -xif "$FIRMWARE" -C "$FIRMWARE_DIR" || untar_failed=1
 	fi
 	if [ "$FIRMWARE_EXTENSION" == "exe" ] || [ "$untar_failed" ]; then
 		# Unpack Windows recover.exe file or mtdblock dump
 		exe_images=($("${TOOLS_DIR}/extract-images" "$ABS_BASE_DIR" "$FIRMWARE" | sed -nr 's/^ *(.*\.image) - .*/\1/p'))
 		[ "$exe_images" ] || exit 1
-		mkdir -p "$FIRMWARE_DIR/var/tmp"
+		mkdir -p "$FIRMWARE_DIR/${FREETZ_AVM_IMAGES_SUBDIR}"
 		mkdir "$KERNEL_DIR"
 		unset exe_hr_mode
 		# NOTE: This loop is sensitive to the order and format of output of
@@ -384,22 +377,22 @@ if [ "$DO_UNPACK" -gt 0 ]; then
 			exe_image="${exe_images[i]}"
 			case "$exe_image" in
 				*/urlader.image)
-					mv "$exe_image" "$FIRMWARE_DIR/var/tmp"
+					mv "$exe_image" "$FIRMWARE_DIR/${FREETZ_AVM_IMAGES_SUBDIR}"
 					;;
 				*/hr_kernel.image)
 					exe_hr_mode=1
-					mv "$exe_image" "$FIRMWARE_DIR/var/tmp/kernel.image"
-					touch "$FIRMWARE_DIR/var/tmp/filesystem.image"
+					mv "$exe_image" "$FIRMWARE_DIR/${FREETZ_AVM_IMAGES_SUBDIR}/kernel.image"
+					touch "$FIRMWARE_DIR/${FREETZ_AVM_IMAGES_SUBDIR}/filesystem.image"
 					;;
 				*/kernel.image)
-					[ "$exe_hr_mode" ] || cp "$exe_image" "$FIRMWARE_DIR/var/tmp/kernel.image"
+					[ "$exe_hr_mode" ] || cp "$exe_image" "$FIRMWARE_DIR/${FREETZ_AVM_IMAGES_SUBDIR}/kernel.image"
 					mv "$exe_image" "$KERNEL_DIR/kernel.raw"
 					;;
 				*/filesystem.image)
 					if [ "$exe_hr_mode" ]; then
 						mv "$exe_image" "$KERNEL_DIR/kernelsquashfs.raw"
 					else
-						mv "$exe_image" "$FIRMWARE_DIR/var/tmp/filesystem.image"
+						mv "$exe_image" "$FIRMWARE_DIR/${FREETZ_AVM_IMAGES_SUBDIR}/filesystem.image"
 					fi
 					;;
 			esac
@@ -408,27 +401,27 @@ if [ "$DO_UNPACK" -gt 0 ]; then
 	fi
 
 	# Do the images exist ?
-	[ ! -r "${KERNEL}" ] && error 1 "cannot find kernel.image"
-	[ ! -r "${FIRMWARE_DIR}/${FILESYSTEM_IMAGE}" ] && error 1 "cannot find filesystem.image"
+	[ ! -r "${KERNEL}" ] && error 1 "cannot find kernel.image (${KERNEL})"
+	[ ! -r "${FIRMWARE_DIR}/${FILESYSTEM_IMAGE}" ] && error 1 "cannot find filesystem.image (${FIRMWARE_DIR}/${FILESYSTEM_IMAGE})"
 
 	# Do we have the tool ?
-	for tool in "$UNSQUASHFS" "$FINDSQUASHFS"; do
+	for tool in "$UNSQUASHFS" "$FINDSQUASHFS" "$TICHKSUM"; do
 		[ ! -x $tool ] && error 1 "cannot find the tool $tool"
 	done
 
-	# Remove AVM's special junk bytes from SquashFS
-	if [ "$FREETZ_AVM_HAS_JUNK_BYTES" == "y" ]; then
-		echo0 "removing AVM SquashFS junk bytes"
-		[ "$FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE" == "y" ] && JUNK_BYTES_FILE="${FIRMWARE_DIR}/${FILESYSTEM_IMAGE}" || JUNK_BYTES_FILE="$KERNEL"
+	# Remove NMI vector from SquashFS
+	if [ "$FREETZ_AVM_HAS_NMI_VECTOR" == "y" ]; then
+		echo0 "removing NMI vector from SquashFS"
+		[ "$FREETZ_AVM_HAS_SEPARATE_FILESYSTEM_IMAGE" == "y" ] && FILE_WITH_NMI_VECTOR_TO_PROCESS="${FIRMWARE_DIR}/${FILESYSTEM_IMAGE}" || FILE_WITH_NMI_VECTOR_TO_PROCESS="$KERNEL"
 		if [ "$FREETZ_VERBOSITY_LEVEL" -lt 2 ]; then
-			"$TOOLS_DIR/remove-junk-bytes" "$JUNK_BYTES_FILE" "$JUNK_BYTES_FILE.nojunk" >/dev/null 2>&1
+			"$TOOLS_DIR/remove-nmi-vector" "$FILE_WITH_NMI_VECTOR_TO_PROCESS" "$FILE_WITH_NMI_VECTOR_TO_PROCESS.no-nmi" >/dev/null 2>&1
 		else
-			"$TOOLS_DIR/remove-junk-bytes" "$JUNK_BYTES_FILE" "$JUNK_BYTES_FILE.nojunk"
+			"$TOOLS_DIR/remove-nmi-vector" "$FILE_WITH_NMI_VECTOR_TO_PROCESS" "$FILE_WITH_NMI_VECTOR_TO_PROCESS.no-nmi"
 		fi
 		case "$?" in
-			0) mv -f "$JUNK_BYTES_FILE.nojunk" "$JUNK_BYTES_FILE" ;;
-			1) warn2 "AVM SquashFS junk bytes not found. Assuming Freetz or Freetz-repacked image." ;;
-			*) error 1 "fatal error while removing AVM SquashFS junk bytes." ;;
+			0) mv -f "$FILE_WITH_NMI_VECTOR_TO_PROCESS.no-nmi" "$FILE_WITH_NMI_VECTOR_TO_PROCESS" ;;
+			1) warn2 "NMI vector not found. Assuming Freetz or Freetz-repacked image." ;;
+			*) error 1 "fatal error while removing NMI vector from SquashFS." ;;
 		esac
 	fi
 
@@ -436,22 +429,25 @@ if [ "$DO_UNPACK" -gt 0 ]; then
 	"$TICHKSUM" -r "${FIRMWARE_DIR}/${FILESYSTEM_IMAGE}" > /dev/null
 
 	mkdir -p "$KERNEL_DIR"
-	if [ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ]; then
+	if [ "${FREETZ_AVM_HAS_SEPARATE_FILESYSTEM_IMAGE}" == "y" ]; then
 		cp "${KERNEL}" "${RAW_KERNEL}"
+		[ ! -r "$RAW_KERNEL" ] && error 1 "copying kernel image failed"
 
-		echo "unpacking update image"
-		modunpack_autodetect_fs "$FILESYSTEM_CORE_DIR" "${FIRMWARE_DIR}/${FILESYSTEM_IMAGE}"
-		[ ! -r "$RAW_KERNEL" -o ! -r "$FILESYSTEM" ] && error 1 "copying kernel or filesystem image failed"
+		if [ "${FREETZ_AVM_HAS_INNER_OUTER_FILESYSTEM}" == "y" ]; then
+			echo "unpacking outer-filesystem image"
+			modunpack_autodetect_fs "${FILESYSTEM_OUTER_DIR}" "${FIRMWARE_DIR}/${FILESYSTEM_IMAGE}"
+			[ ! -r "$FILESYSTEM" ] && error 1 "unpacking outer-filesystem image failed"
+		fi
 
-		echo "unpacking filesystem image"
-		modunpack_autodetect_fs "$FILESYSTEM_DIR" "$FILESYSTEM" || error 1 "unpacking filesystem image failed"
+		echo "unpacking ${INNER_FS_PREFIX}filesystem image"
+		modunpack_autodetect_fs "$FILESYSTEM_DIR" "$FILESYSTEM" || error 1 "unpacking ${INNER_FS_PREFIX}filesystem image failed"
 	else
 		echo "splitting kernel image"
 		( cd "$KERNEL_DIR" && "${TOOLS_DIR}/${FINDSQUASHFS_TOOL}" "../${FIRMWARE_SUBDIR}/${KERNEL_IMAGE}" > /dev/null 2>&1 )
 
 		if [ ! -r "$RAW_KERNEL" -o ! -r "$FILESYSTEM" ]; then
 			if [ -r "${FIRMWARE_DIR}/${FILESYSTEM_IMAGE}" ] && [ $(stat -c %s "${FIRMWARE_DIR}/${FILESYSTEM_IMAGE}") -gt 0 ]; then
-				_config_hint=" - maybe you should configure a firmware with FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE"
+				_config_hint=" - maybe you should configure a firmware with FREETZ_AVM_HAS_SEPARATE_FILESYSTEM_IMAGE/FREETZ_AVM_HAS_INNER_OUTER_FILESYSTEM"
 			fi
 			error 1 "kernel splitting failed${_config_hint}"
 		fi
@@ -519,7 +515,7 @@ FREETZ_LIBRARY_DIR=$(stripTrailingSlash "${FREETZ_RPATH%%:*}")
 MOD_DIR="${DIR}/modified"
 FIRMWARE_MOD_DIR="${MOD_DIR}/${FIRMWARE_SUBDIR}"
 FILESYSTEM_MOD_DIR="${MOD_DIR}/${FILESYSTEM_SUBDIR}"
-FILESYSTEM_CORE_MOD_DIR="${MOD_DIR}/${FILESYSTEM_CORE_SUBDIR}"
+FILESYSTEM_OUTER_MOD_DIR="${MOD_DIR}/${FILESYSTEM_OUTER_SUBDIR}"
 EXTERNAL_MOD_DIR="${MOD_DIR}/${EXTERNAL_SUBDIR}"
 KERNEL_MOD_DIR="${MOD_DIR}/${KERNEL_SUBDIR}"
 AVMPLUGINS_MOD_DIR="${KERNEL_MOD_DIR}/${AVMPLUGINS_SUBDIR}"
@@ -532,17 +528,21 @@ FILESYSTEM_MOD="${FIRMWARE_MOD_DIR}/${FILESYSTEM_IMAGE}"
 RAW_KERNEL_MOD="${KERNEL_MOD_DIR}/${RAW_KERNEL_FILE}"
 RAW_FILESYSTEM_MOD="${KERNEL_MOD_DIR}/${RAW_HIDDEN_FILE}"
 
-if [ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ]; then
-	CORE_FILESYSTEM_MOD="${FILESYSTEM_CORE_MOD_DIR}/${FILESYSTEM_CORE_IMAGE}"
+if [ "${FREETZ_AVM_HAS_SEPARATE_FILESYSTEM_IMAGE}" == "y" ]; then
+	if [ "${FREETZ_AVM_HAS_INNER_OUTER_FILESYSTEM}" == "y" ]; then
+		MAIN_FILESYSTEM_MOD="${FILESYSTEM_OUTER_MOD_DIR}/${FILESYSTEM_INNER_IMAGE}"
+	else
+		MAIN_FILESYSTEM_MOD="$RAW_FILESYSTEM_MOD"
+	fi
 else
-	CORE_FILESYSTEM_MOD="$RAW_FILESYSTEM_MOD"
+	MAIN_FILESYSTEM_MOD="$RAW_FILESYSTEM_MOD"
 fi
 
 VARTAR_MOD="${FILESYSTEM_MOD_DIR}/${VARTAR_FILE}"
 
 [ "${FREETZ_AVM_UCLIBC_NPTL_ENABLED}" == "y" ] && TARGET_TOOLCHAIN_ID__UCLIBC_SUFFIX="-nptl"
 [ "${FREETZ_KERNEL_VERSION_3_10_MIN}" == "y" ] && TARGET_TOOLCHAIN_ID__KERNEL_SUFFIX="_kernel-${FREETZ_KERNEL_VERSION_MAJOR}"
-TARGET_TOOLCHAIN_ID="${FREETZ_TARGET_ARCH}_gcc-${FREETZ_TARGET_GCC_VERSION}_uClibc-${FREETZ_TARGET_UCLIBC_VERSION}${TARGET_TOOLCHAIN_ID__UCLIBC_SUFFIX}${TARGET_TOOLCHAIN_ID__KERNEL_SUFFIX}"
+TARGET_TOOLCHAIN_ID="${FREETZ_TARGET_ARCH_ENDIANNESS_DEPENDENT}_gcc-${FREETZ_TARGET_GCC_VERSION}_uClibc-${FREETZ_TARGET_UCLIBC_VERSION}${TARGET_TOOLCHAIN_ID__UCLIBC_SUFFIX}${TARGET_TOOLCHAIN_ID__KERNEL_SUFFIX}"
 PACKAGES_DIR="${PACKAGES_DIR_ROOT}/target-${TARGET_TOOLCHAIN_ID}"
 TARGET_SPECIFIC_ROOT_DIR="${PACKAGES_DIR}/root"
 
@@ -631,25 +631,25 @@ function sizeinfo()
 }
 
 # show avm image details
-avm_fw_product="$(sed -rn 's/export CONFIG_PRODUKT_NAME=".*([0-9]{3}[0-9V].*)"/\1/p' ${FILESYSTEM_DIR}/etc/init.d/rc.conf | head -n1)" # 4-digits in /etc/init.d/rc.conf
-[ -z "$avm_fw_product" ] && avm_fw_product="$(sed -rn 's/export CONFIG_PRODUKT_NAME="(FRITZ!Box|Speedport|Sinus|Eumex) ([^"]+)"/\2/p' ${FILESYSTEM_DIR}/etc/init.d/rc.conf | head -n1 | tr ' ' '-')" # symbolic name in /etc/init.d/rc.conf
+AVM_FW_PRODUCT="$(sed -rn 's/export CONFIG_PRODUKT_NAME=".*([0-9]{3}[0-9V].*)"/\1/p' ${FILESYSTEM_DIR}/etc/init.d/rc.conf | head -n1)" # 4-digits in /etc/init.d/rc.conf
+[ -z "${AVM_FW_PRODUCT}" ] && AVM_FW_PRODUCT="$(sed -rn 's/export CONFIG_PRODUKT_NAME="(FRITZ!Box|Speedport|Sinus|Eumex) ([^"]+)"/\2/p' ${FILESYSTEM_DIR}/etc/init.d/rc.conf | head -n1 | tr ' ' '-')" # symbolic name in /etc/init.d/rc.conf
 if [ -e "${FILESYSTEM_DIR}/etc/init.d/rc.init" ]; then
 	# /etc/init.d/rc.init is not available in all firmwares
-	[ -z "$avm_fw_product" ] && avm_fw_product="$(sed -rn 's/^HW=[0-9]* OEM=all _PRODUKT_NAME=(FRITZ!Box|Speedport|Sinus|Eumex)#//p' ${FILESYSTEM_DIR}/etc/init.d/rc.init | head -n1 | sed 's/#//g;s/Annex.//;s/WLAN/-&/g;s/^$/FritzBox/g')" # symbolic name in /etc/init.d/rc.init
-	[ -z "$avm_fw_product" ] && avm_fw_product="$(sed -rn 's/^HW=[0-9]* OEM=all _PRODUKT_NAME=([0-9A-Z\#]{4,6}).*/\1/p' ${FILESYSTEM_DIR}/etc/init.d/rc.init)" # 4-digits in /etc/init.d/rc.init
+	[ -z "${AVM_FW_PRODUCT}" ] && AVM_FW_PRODUCT="$(sed -rn 's/^HW=[0-9]* OEM=all _PRODUKT_NAME=(FRITZ!Box|Speedport|Sinus|Eumex)#//p' ${FILESYSTEM_DIR}/etc/init.d/rc.init | head -n1 | sed 's/#//g;s/Annex.//;s/WLAN/-&/g;s/^$/FritzBox/g')" # symbolic name in /etc/init.d/rc.init
+	[ -z "${AVM_FW_PRODUCT}" ] && AVM_FW_PRODUCT="$(sed -rn 's/^HW=[0-9]* OEM=all _PRODUKT_NAME=([0-9A-Z\#]{4,6}).*/\1/p' ${FILESYSTEM_DIR}/etc/init.d/rc.init)" # 4-digits in /etc/init.d/rc.init
 fi
-[ -z "$avm_fw_product" ] && warn "Failed to determine avm_fw_product, even though this is a cosmetic bug only please report it to the Freetz developers and provide your .config"
-avm_fw_product="${avm_fw_product%% Edition*}"
-avm_fw_product="${avm_fw_product% }"
-avm_fw_language="$(sed -n 's/^language /_/p' ${FILESYSTEM_DIR}/etc/default.language)" #primary language
-avm_fw_language="$avm_fw_language$(for x in $(ls ${FILESYSTEM_DIR}/etc/htmltext_??.db 2>/dev/null| sed 's/.*_//g;s/\.db//g'); do [ "_$x" != "$avm_fw_language" ] && echo -en "-$x"; done; echo)" # other languages
-avm_fw_major="$(sed -rn 's/^export CONFIG_VERSION_MAJOR="(.*)"/\1/p' ${FILESYSTEM_DIR}/etc/init.d/rc.conf | tail -n1)" # newer firmware
-[ -z "$avm_fw_major" ] && avm_fw_major="$(sed -n 's/^HW=[0-9].*VERSION_MAJOR=//p' ${FILESYSTEM_DIR}/etc/init.d/rc.init)" # older firmware
-avm_fw_version="$(sed -n 's/^export FIRMWARE_VERSION=.*}//p' ${FILESYSTEM_DIR}/etc/version)"
-avm_fw_labor="$(sed -rn 's/^export CONFIG_LABOR_ID_NAME="(.*)"/-\1/p' ${FILESYSTEM_DIR}/etc/init.d/rc.conf)"
-avm_fw_revision="$(sed -n '/--project)$/{N;s/.*echo //p}' ${FILESYSTEM_DIR}/etc/version)"
-avm_fw_date="$(sed -rn 's/^export FIRMWARE_DATE="(.*)"/\1/p' ${FILESYSTEM_DIR}/etc/version)"
-echo1 -l "detected$FIRMWARE_MAIN firmware ${avm_fw_product/ /-}$avm_fw_language $avm_fw_major$avm_fw_version$avm_fw_labor rev$avm_fw_revision ($avm_fw_date)\n"
+[ -z "${AVM_FW_PRODUCT}" ] && warn "Failed to determine AVM_FW_PRODUCT, even though this is a cosmetic bug only please report it to the Freetz developers and provide your .config"
+AVM_FW_PRODUCT="${AVM_FW_PRODUCT%% Edition*}"
+AVM_FW_PRODUCT="${AVM_FW_PRODUCT% }"
+AVM_FW_LANGUAGE="$(sed -n 's/^language /_/p' ${FILESYSTEM_DIR}/etc/default.language)" #primary language
+AVM_FW_LANGUAGE="${AVM_FW_LANGUAGE}$(for x in $(ls ${FILESYSTEM_DIR}/etc/htmltext_??.db 2>/dev/null| sed 's/.*_//g;s/\.db//g'); do [ "_$x" != "${AVM_FW_LANGUAGE}" ] && echo -en "-$x"; done; echo)" # other languages
+AVM_FW_MAJOR="$(sed -rn 's/^export CONFIG_VERSION_MAJOR="(.*)"/\1/p' ${FILESYSTEM_DIR}/etc/init.d/rc.conf | tail -n1)" # newer firmware
+[ -z "${AVM_FW_MAJOR}" ] && AVM_FW_MAJOR="$(sed -n 's/^HW=[0-9].*VERSION_MAJOR=//p' ${FILESYSTEM_DIR}/etc/init.d/rc.init)" # older firmware
+AVM_FW_VERSION="$(sed -n 's/^export FIRMWARE_VERSION=.*}[.]//p' ${FILESYSTEM_DIR}/etc/version)"
+AVM_FW_LABOR="$(sed -rn 's/^export CONFIG_LABOR_ID_NAME="(.*)"/-\1/p' ${FILESYSTEM_DIR}/etc/init.d/rc.conf)"
+AVM_FW_REVISION="$(sed -n '/--project)$/{N;s/.*echo //p}' ${FILESYSTEM_DIR}/etc/version)"
+AVM_FW_DATE="$(sed -rn 's/^export FIRMWARE_DATE="(.*)"/\1/p' ${FILESYSTEM_DIR}/etc/version)"
+echo1 -l "detected${FIRMWARE_MAIN} firmware ${AVM_FW_PRODUCT/ /-}${AVM_FW_LANGUAGE} ${AVM_FW_MAJOR}.${AVM_FW_VERSION}${AVM_FW_LABOR} rev${AVM_FW_REVISION} (${AVM_FW_DATE})\n"
 
 if [ "$DO_MOD" -gt 0 ]; then
 	echo0 -b "STEP 2: MODIFY"
@@ -715,7 +715,7 @@ if [ "$DO_MOD" -gt 0 ]; then
 	echo0 "applying patches"
 
 	# Include patching helper function (modpatch)
-	. "${TOOLS_DIR}/freetz_patch" || error 1 "cannot find script freetz_patch"
+	source "${TOOLS_DIR}/freetz_patch" || error 1 "cannot find script freetz_patch"
 
 	PATCHES_DEVICES_DIR_FW_SERIES_SPECIFIC="${PATCHES_DEVICES_DIR}/${FREETZ_TYPE_PREFIX_SERIES_SUBDIR}"
 	PATCHES_DEVICES_DIR_BOX_SPECIFIC="${PATCHES_DEVICES_DIR_FW_SERIES_SPECIFIC}/${FREETZ_TYPE_PREFIX%_*}"
@@ -743,7 +743,7 @@ if [ "$DO_MOD" -gt 0 ]; then
 	for j in ${PATCHES_DEVICES_DIR_FULL_LIST[@]}; do
 		for i in $j/*.sh; do
 			echo2 "applying patch file $i"
-			. $i
+			source $i
 		done
 	done
 	shopt -u nullglob
@@ -821,9 +821,6 @@ if [ "$DO_MOD" -gt 0 ]; then
 
 	# Set version and options
 	SUBVERSION_FILE="${BASE_DIR}/.version"
-	FIRMWAREVERSION_FILE="${FILESYSTEM_MOD_DIR}/etc/.version"
-	FIRMWAREVERSION="$(cat $FIRMWAREVERSION_FILE)"
-	PACKAGES_LIST_FILE="${BASE_DIR}/.packages"
 
 	if [ ! -r "$SUBVERSION_FILE" ]; then
 		error 1 "cannot determine version"
@@ -850,6 +847,7 @@ if [ "$DO_MOD" -gt 0 ]; then
 		OPTIONS_ADD+=" +$i"
 	done
 
+	PACKAGES_LIST_FILE="${BASE_DIR}/.packages"
 	rm -f "${PACKAGES_LIST_FILE}"
 	for pkg in $(static_packages) $(static_addons); do
 		OPTIONS_ADD+=" +$pkg"
@@ -892,7 +890,7 @@ if [ "$DO_MOD" -gt 0 ]; then
 	for i in "${PATCHES_SCRIPTS_DIR}/"*.sh; do
 		[ -r "$i" ] || continue
 		echo2 "applying patch file $i"
-		. $i
+		source $i
 	done
 
 	# stop execution if in patch test mode
@@ -1011,7 +1009,7 @@ if [ "$DO_MOD" -gt 0 ]; then
 
 		rm -f ${VARTAR_MOD_DIR}/var/*/.dummy
 
-		echo1 "installing libs"
+		echo0 "installing libs"
 		for i in $(set | grep ^FREETZ_LIB_.*=y | grep -v ^FREETZ_LIB_STDCXXLIB); do
 			all_files=""
 			found=0
@@ -1038,9 +1036,19 @@ if [ "$DO_MOD" -gt 0 ]; then
 				found=1
 				[ -d "${FILESYSTEM_MOD_DIR}/${dn}" ] || mkdir -p "${FILESYSTEM_MOD_DIR}/${dn}"
 				cp -a $files "${FILESYSTEM_MOD_DIR}/${dn}/"
-				if [ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ] && echo "${bn}" | grep -qE '^(ld_uClibc|libuClibc)$'; then
-					cp -a $files "${FILESYSTEM_CORE_MOD_DIR}/${dn}/"
+
+				if [ "${FREETZ_AVM_HAS_INNER_OUTER_FILESYSTEM}" == "y" ]; then
+					wrapper_fs_required_libs="ld_uClibc libuClibc"
+
+					# replaced busybox might require some additional libraries not available in AVM's wrapper filesystem
+					[ "$FREETZ_REPLACE_BUSYBOX" == "y" -a -r "${PACKAGES_DIR}/busybox/busybox" ] && \
+					  wrapper_fs_required_libs+=" $(getNeededEntries ${PACKAGES_DIR}/busybox/busybox | sed -r -e 's,[.]so([.].+)?$,,' | sort | tr $'\n' " ")"
+
+					if echo "${bn}" | grep -qE "^($(join '|' ${wrapper_fs_required_libs}))$"; then
+						cp -a $files "${FILESYSTEM_OUTER_MOD_DIR}/${dn}/"
+					fi
 				fi
+
 				all_files="$all_files $files"
 			done
 			if [ "$found" = 0 ]; then
@@ -1050,8 +1058,8 @@ if [ "$DO_MOD" -gt 0 ]; then
 			fi
 		done
 		if [ "$FREETZ_KEEP_AVM_UCLIBC" != "y" -a "$FREETZ_LIB_libuClibc" == "y" ]; then
-			cp -a "${TARGET_SPECIFIC_ROOT_DIR}/lib/libc.so.0" "${FILESYSTEM_MOD_DIR}/lib/"
-			[ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ] && cp -a "${TARGET_SPECIFIC_ROOT_DIR}/lib/libc.so.0" "${FILESYSTEM_CORE_MOD_DIR}/lib/"
+			cp -a "${TARGET_SPECIFIC_ROOT_DIR}/lib/libc.so.${FREETZ_TARGET_UCLIBC_MAJOR_VERSION}" "${FILESYSTEM_MOD_DIR}/lib/"
+			[ "${FREETZ_AVM_HAS_INNER_OUTER_FILESYSTEM}" == "y" ] && cp -a "${TARGET_SPECIFIC_ROOT_DIR}/lib/libc.so.${FREETZ_TARGET_UCLIBC_MAJOR_VERSION}" "${FILESYSTEM_OUTER_MOD_DIR}/lib/"
 		fi
 
 		echo1 "checking uClibc version"
@@ -1093,7 +1101,7 @@ if [ "$DO_MOD" -gt 0 ]; then
 		echo0 "installing busybox"
 
 		DIRS_BUSYBOX_TO_REPLACE_WITHIN="${FILESYSTEM_MOD_DIR}"
-		[ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ] && DIRS_BUSYBOX_TO_REPLACE_WITHIN+=" ${FILESYSTEM_CORE_MOD_DIR}"
+		[ "${FREETZ_AVM_HAS_INNER_OUTER_FILESYSTEM}" == "y" ] && DIRS_BUSYBOX_TO_REPLACE_WITHIN+=" ${FILESYSTEM_OUTER_MOD_DIR}"
 
 		echo1 "replacing busybox"
 		[ ! -r "${PACKAGES_DIR}/busybox/busybox" ] && error 1 "cannot find busybox replacement"
@@ -1135,6 +1143,61 @@ if [ "$DO_MOD" -gt 0 ]; then
 			done
 		done || exit 1
 	fi
+
+	echo0 "installing packages"
+	for pkg in $(static_packages); do
+		sizeinfo "$pkg"
+		pkg_name=$(pkg_name "$pkg")
+
+		"$TAR" -c -C "${PACKAGES_DIR}/${pkg}/root" \
+			$(find "${PACKAGES_DIR}/${pkg}/" -maxdepth 1 -type f -name ".exclude*" -printf '--exclude-from=%p ') \
+			. | \
+		"$TAR" -x -C "$FILESYSTEM_MOD_DIR" || exit 1
+
+		[ -d "${PACKAGES_DIR}/${pkg}/${VARTAR_SUBDIR}" ] && \
+			$(
+				"$TAR" -c -C "${PACKAGES_DIR}/${pkg}/${VARTAR_SUBDIR}" . | \
+				"$TAR" -x -C ${VARTAR_MOD_DIR} || exit 1
+			)
+
+		[ -r "${PACKAGES_DIR}/${pkg}/.language" ] && \
+			modlang "${PACKAGES_DIR}/${pkg}/.language" "${FILESYSTEM_MOD_DIR}"
+
+		if ! grep -q "^$pkg_name$" "${VARTAR_MOD_DIR}/var/mod/etc/static.pkg" >/dev/null 2>&1; then
+			echo "$pkg_name" >> "${VARTAR_MOD_DIR}/var/mod/etc/static.pkg"
+		fi
+
+		pkgfiles=$(collect_pkg_files "${pkg}" | sed -e "s,^,${PACKAGES_DIR}/${pkg}/root,")
+		sizeinfo pkg "${PACKAGES_DIR}/${pkg}" $pkgfiles
+	done
+	for pkg in $(static_addons); do
+		sizeinfo "$pkg (addon)"
+		pkg_name=$(pkg_name "$pkg")
+
+		if [ -e "${ADDON_DIR}/${pkg}/etc/init.d/rc.${pkg_name}" ]; then
+			echo "NOTICE: addon '$pkg' is in old-style format (no language support)." 1>&2
+			"$TAR" -c -C "${ADDON_DIR}/${pkg}" . | "$TAR" -x -C "$FILESYSTEM_MOD_DIR" || exit 1
+		else
+			"$TAR" -c -C "${ADDON_DIR}/${pkg}/root" \
+				$(find "${ADDON_DIR}/${pkg}/" -maxdepth 1 -type f -name ".exclude*" -printf '--exclude-from=%p ') \
+				. | \
+			"$TAR" -x -C "$FILESYSTEM_MOD_DIR" || exit 1
+
+			[ -d "${ADDON_DIR}/${pkg}/${VARTAR_SUBDIR}" ] && \
+				$(
+					"$TAR" -c -C "${ADDON_DIR}/${pkg}/${VARTAR_SUBDIR}" . | \
+					"$TAR" -x -C ${VARTAR_MOD_DIR} || exit 1
+				)
+
+			[ -r "${ADDON_DIR}/${pkg}/.language" ] && \
+				modlang "${ADDON_DIR}/${pkg}/.language" "${FILESYSTEM_MOD_DIR}"
+		fi
+
+		if ! grep -q "^$pkg_name$" "${VARTAR_MOD_DIR}/var/mod/etc/static.pkg" >/dev/null 2>&1; then
+			echo "$pkg_name" >> "${VARTAR_MOD_DIR}/var/mod/etc/static.pkg"
+		fi
+		sizeinfo add "${ADDON_DIR}/${pkg}"
+	done
 
 	if [ "$NOCOMPILE" != "1" -a "$FREETZ_REPLACE_KERNEL" == "y" ]; then
 		echo0 "replacing kernel"
@@ -1198,7 +1261,7 @@ if [ "$DO_MOD" -gt 0 ]; then
 		fi
 	fi
 
-	for f in modules.dep.bin modules.alias.bin modules.symbols.bin; do
+	for f in modules.dep.bin modules.alias.bin modules.builtin.bin modules.symbols.bin; do
 		if [ -e "$MODULES_DIR/$f" ]; then
 			echo1 "removing (unused) $f"
 			rm -f "$MODULES_DIR/$f"
@@ -1225,77 +1288,7 @@ if [ "$DO_MOD" -gt 0 ]; then
 		echo2 $dir
 	done
 
-	echo0 "installing packages"
-	for pkg in $(static_packages); do
-		sizeinfo "$pkg"
-		pkg_name=$(pkg_name "$pkg")
-
-		"$TAR" -c -C "${PACKAGES_DIR}/${pkg}/root" \
-			$(find "${PACKAGES_DIR}/${pkg}/" -maxdepth 1 -type f -name ".exclude*" -printf '--exclude-from=%p ') \
-			. | \
-		"$TAR" -x -C "$FILESYSTEM_MOD_DIR" || exit 1
-
-		[ -d "${PACKAGES_DIR}/${pkg}/${VARTAR_SUBDIR}" ] && \
-			$(
-				"$TAR" -c -C "${PACKAGES_DIR}/${pkg}/${VARTAR_SUBDIR}" . | \
-				"$TAR" -x -C ${VARTAR_MOD_DIR} || exit 1
-			)
-
-		[ -r "${PACKAGES_DIR}/${pkg}/.language" ] && \
-			modlang "${PACKAGES_DIR}/${pkg}/.language" "${FILESYSTEM_MOD_DIR}"
-
-		if ! grep -q "^$pkg_name$" "${VARTAR_MOD_DIR}/var/mod/etc/static.pkg" >/dev/null 2>&1; then
-			echo "$pkg_name" >> "${VARTAR_MOD_DIR}/var/mod/etc/static.pkg"
-		fi
-
-		pkgfiles=$(collect_pkg_files "${pkg}" | sed -e "s,^,${PACKAGES_DIR}/${pkg}/root,")
-		sizeinfo pkg "${PACKAGES_DIR}/${pkg}" $pkgfiles
-	done
-	for pkg in $(static_addons); do
-		sizeinfo "$pkg (addon)"
-		pkg_name=$(pkg_name "$pkg")
-
-		if [ -e "${ADDON_DIR}/${pkg}/etc/init.d/rc.${pkg_name}" ]; then
-			echo "NOTICE: addon '$pkg' is in old-style format (no language support)." 1>&2
-			"$TAR" -c -C "${ADDON_DIR}/${pkg}" . | "$TAR" -x -C "$FILESYSTEM_MOD_DIR" || exit 1
-		else
-			"$TAR" -c -C "${ADDON_DIR}/${pkg}/root" \
-				$(find "${ADDON_DIR}/${pkg}/" -maxdepth 1 -type f -name ".exclude*" -printf '--exclude-from=%p ') \
-				. | \
-			"$TAR" -x -C "$FILESYSTEM_MOD_DIR" || exit 1
-
-			[ -d "${ADDON_DIR}/${pkg}/${VARTAR_SUBDIR}" ] && \
-				$(
-					"$TAR" -c -C "${ADDON_DIR}/${pkg}/${VARTAR_SUBDIR}" . | \
-					"$TAR" -x -C ${VARTAR_MOD_DIR} || exit 1
-				)
-
-			[ -r "${ADDON_DIR}/${pkg}/.language" ] && \
-				modlang "${ADDON_DIR}/${pkg}/.language" "${FILESYSTEM_MOD_DIR}"
-		fi
-
-		if ! grep -q "^$pkg_name$" "${VARTAR_MOD_DIR}/var/mod/etc/static.pkg" >/dev/null 2>&1; then
-			echo "$pkg_name" >> "${VARTAR_MOD_DIR}/var/mod/etc/static.pkg"
-		fi
-		sizeinfo add "${ADDON_DIR}/${pkg}"
-	done
-
-	if [ -x "${BASE_DIR}/fwmod_custom" ]; then
-		echo "invoking custom script"
-
-		# syntax check
-		$SHELL -n "${BASE_DIR}/fwmod_custom"
-
-		if [ $? -ne 0 ]; then
-			error 1 "syntax error in custom script"
-		fi
-
-		( cd "$MOD_DIR" && ../../fwmod_custom all ) || exit 1
-
-		if [ $? -ne 0 ]; then
-			error 1 "custom script returned error"
-		fi
-	fi
+	invoke_fwmod_custom all
 
 	# Processing some options, must be done after base package is in place
 	if [ "$FREETZ_INSTALL_BASE" == "y" ]; then
@@ -1336,7 +1329,8 @@ if [ "$DO_MOD" -gt 0 ]; then
 
 		# .config
 		if [ ! "$FREETZ_REMOVE_DOT_CONFIG" == "y" ]; then
-			{ grep '^[^#].*$' "$DOT_CONFIG"; grep '^#.*$' "$DOT_CONFIG.compressed"; echo "FREETZ_LIBRARY_DIR=\"${FREETZ_LIBRARY_DIR}\""; } > "${FILESYSTEM_MOD_DIR}/etc/.config"
+			{ grep '^[^#].*$' "$DOT_CONFIG"; grep '^#.*$' "$DOT_CONFIG.compressed"; echo "FREETZ_LIBRARY_DIR=\"${FREETZ_LIBRARY_DIR}\""; } \
+			| grep -v "FREETZ_FWMOD_SIGN_PRIVATE_KEY_PASSWORD" > "${FILESYSTEM_MOD_DIR}/etc/.config"
 			echo1 "integrated .config (stripped)"
 		fi
 
@@ -1376,7 +1370,7 @@ if [ "$DO_MOD" -gt 0 ]; then
 
 	if [ "$FREETZ_STRIP_LIBRARIES" == "y" ]; then
 		echo0 "shrinking shared libs"
-		. ${TOOLS_DIR}/freetz_mklibs
+		source ${TOOLS_DIR}/freetz_mklibs
 		mklibs || error 1 "mklibs returned an error. Please see mklibs.log."
 	fi
 	if  [ "$FREETZ_STRIP_MODULES_ALL" == "y" ]; then
@@ -1420,7 +1414,7 @@ if [ "$DO_MOD" -gt 0 ]; then
 	if [ "$FREETZ_STRIP_BINARIES" == "y" ]; then
 		echo0 "stripping leftover unstripped binaries"
 		for i in $(find \
-				"${FILESYSTEM_MOD_DIR}" $([ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ] && echo "${FILESYSTEM_CORE_MOD_DIR}") \
+				"${FILESYSTEM_MOD_DIR}" $([ "${FREETZ_AVM_HAS_INNER_OUTER_FILESYSTEM}" == "y" ] && echo "${FILESYSTEM_OUTER_MOD_DIR}") \
 				! \( -name '*.ko' -o -path '*/usr/www/*' -o -path '*/etc/default*' -o -path '*/lib/modules*' \) \
 				\( -perm /100 -o -name "*.so*" \) \
 				-type f \
@@ -1436,7 +1430,7 @@ if [ "$DO_MOD" -gt 0 ]; then
 	if [ "$EXTERNAL_ENABLED" == "y" ]; then
 		echo0 "processing external"
 		[ ! -x "$EXTERNAL" ] && error 1 "cannot find the tool $EXTERNAL_TOOL"
-		. "${EXTERNAL}"
+		source "${EXTERNAL}"
 	fi
 
 	touch "${DIR}/.modified"
@@ -1444,19 +1438,20 @@ if [ "$DO_MOD" -gt 0 ]; then
 fi
 
 
-###########################################
-## Pack, zip, copy the modified firmware ##
-###########################################
+#################################################
+## Pack, sign, zip, copy the modified firmware ##
+#################################################
 
 DO_AVOID_MOD_IN_STEP3=0
 [ "$DO_PACK" -gt 0 ] && action_names+="/PACK"
+[ "$DO_SIGN" -gt 0 ] && action_names+="/SIGN"
 [ "$DO_ZIP"  -gt 0 ] && action_names+="/ZIP"
 [ "$COPY_FS_DIR"   ] && action_names+="/COPY"
 action_names=${action_names##/}
 
-# ------------------------------------------------
-# -- Common initial actions for pack, zip, copy --
-# ------------------------------------------------
+# ------------------------------------------------------
+# -- Common initial actions for pack, sign, zip, copy --
+# ------------------------------------------------------
 
 if [ "$action_names" ]; then
 	echo0 -b "STEP 3: ${action_names}"
@@ -1483,6 +1478,8 @@ if [ "$action_names" ]; then
 			# Copy the unpacked directory
 			cp -r "$ORG_DIR" "$MOD_DIR"
 		fi
+
+		invoke_fwmod_custom all_no_freetz
 	fi
 
 	# Remove left over Subversion directories
@@ -1494,12 +1491,16 @@ if [ "$action_names" ]; then
 	rm -f "$KERNEL_MOD"
 	rm -f "$FILESYSTEM_MOD"
 	rm -f "${DIR}/*.image"
+	rm -f "${FIRMWARE_MOD_DIR}/var/signature"
 
 	modmakedate=$(date +%Y%m%d-%H%M%S)
+	modbaseimagename="${FREETZ_TYPE_PREFIX_ALIEN_HARDWARE}${FREETZ_TYPE_PREFIX%_0?_??}"
+	modbaseimagename+="_${AVM_FW_VERSION}"
 	if [ -n "$FREETZ_TYPE_PREFIX_LABOR_FIRMWARE" ]; then
-		modbaselaborname="-rev${avm_fw_revision}${FREETZ_TYPE_PREFIX_LABOR_FIRMWARE}"
+		modbaseimagename+="-rev${AVM_FW_REVISION}${FREETZ_TYPE_PREFIX_LABOR_FIRMWARE}"
 	fi
-	modbaseimagename="${FREETZ_TYPE_PREFIX_ALIEN_HARDWARE}${FREETZ_TYPE_PREFIX%_0?_??}_${FIRMWAREVERSION}${modbaselaborname}-${SUBVERSION}.${FREETZ_TYPE_LANGUAGE}"
+	modbaseimagename+="${SUBVERSION:+-}${SUBVERSION}" # missing in DO_MOD=0 mode
+	modbaseimagename+=".${FREETZ_TYPE_LANGUAGE}"
 	if [ "$FREETZ_CUSTOM_IMAGE_NAME" == "y" -a ! -z "$FREETZ_USER_DEFINED_COMMENT" ]; then
 		modcustomimagestring=$(echo $FREETZ_USER_DEFINED_COMMENT | sed -e "s/ /_/g" | tr -cd 'a-zA-Z0-9_+-.<->')
 	else
@@ -1517,7 +1518,7 @@ if [ "$action_names" ]; then
 		modimagenameprefix=""
 		modimagenamesuffix=""
 	fi
-	modstring="${modimagenameprefix}${modbaseimagename}${modimagenamesuffix}_$modmakedate"
+	modstring="${modimagenameprefix}${modbaseimagename}${modimagenamesuffix}_${modmakedate}"
 	modimage="${modstring}.image"
 
 	# collect externalized files
@@ -1528,10 +1529,10 @@ if [ "$action_names" ]; then
 		echo1 "integrate freetz info file into image"
 		freetz_info_file="$MOD_DIR/filesystem/etc/freetz_info.cfg"
 		echo "export FREETZ_INFO_BOXTYPE='${FREETZ_TYPE_PREFIX_ALIEN_HARDWARE}${FREETZ_TYPE_PREFIX%_0?_??}${FREETZ_TYPE_PREFIX_LABOR_FIRMWARE}'" > "$freetz_info_file"
-		echo "export FREETZ_INFO_FIRMWAREVERSION='${FIRMWAREVERSION}'" >> "$freetz_info_file"
+		echo "export FREETZ_INFO_FIRMWAREVERSION='${AVM_FW_VERSION}'" >> "$freetz_info_file"
 		echo "export FREETZ_INFO_SUBVERSION='${SUBVERSION}'" >> "$freetz_info_file"
 		echo "export FREETZ_INFO_LANG='${FREETZ_TYPE_LANGUAGE}'" >> "$freetz_info_file"
-		echo "export FREETZ_INFO_MAKEDATE='$modmakedate'" >> "$freetz_info_file"
+		echo "export FREETZ_INFO_MAKEDATE='${modmakedate}'" >> "$freetz_info_file"
 		echo "export FREETZ_INFO_IMAGE_NAME='$modimage'" >> "$freetz_info_file"
 		echo "export FREETZ_INFO_COMMENT='${FREETZ_USER_DEFINED_COMMENT}'" >> "$freetz_info_file"
 		echo "export FREETZ_INFO_EXTERNAL_FILES='${externalised_files}'" >> "$freetz_info_file"
@@ -1547,6 +1548,41 @@ if [ "$action_names" ]; then
 
 	[ "$FREETZ_AVM_HAS_UDEV" == "y" ] || \
 		$MAKEDEVS -d $MAKEDEVS_FILE $FILESYSTEM_MOD_DIR > $MOD_DIR/filesystem.log 2>&1
+fi
+
+
+if [ "$DO_SIGN" -gt 0 ]; then
+	FREETZ_IMAGE_SIGNING_PREFIX="${HOME}/.freetz.image_signing"
+	function getNumberOfImageSigningFiles() {
+		local ret=0
+		for i in asc key pem; do
+			[ -e "${FREETZ_IMAGE_SIGNING_PREFIX}.$i" ] && ret=$((ret+1))
+		done
+		echo $ret
+	}
+
+	NO_IMAGE_SIGNING_FILES=$(getNumberOfImageSigningFiles)
+	if [ "${NO_IMAGE_SIGNING_FILES}" -eq 0 ]; then
+		echo0 "No image signing files found, generating them ..."
+		if [ -z "${FREETZ_FWMOD_SIGN_PRIVATE_KEY_PASSWORD}" ]; then
+			# be verbose if no private key password provided
+			"${TOOLS_DIR}/yf/signimage/generate_signing_key" "${FREETZ_FWMOD_SIGN_PRIVATE_KEY_PASSWORD}"
+		else
+			"${TOOLS_DIR}/yf/signimage/generate_signing_key" "${FREETZ_FWMOD_SIGN_PRIVATE_KEY_PASSWORD}" 2>"${MOD_DIR}/generate_signing_key.log"
+		fi
+		if [ $? -ne 0 ]; then
+			error 1 "failed to generate image signing files, see console output or ${MOD_DIR}/generate_signing_key.log for details"
+		fi
+		NO_IMAGE_SIGNING_FILES=$(getNumberOfImageSigningFiles)
+	else
+		echo0 "Image signing files found, checking their consistency"
+	fi
+	if [ "${NO_IMAGE_SIGNING_FILES}" -ne 3 ]; then
+		error 1 "Unexpected/wrong number of image signing files"
+	fi
+
+	echo0 "Copying ${FREETZ_IMAGE_SIGNING_PREFIX}.asc to /etc/avm_firmware_public_key9"
+	cp -a "${FREETZ_IMAGE_SIGNING_PREFIX}.asc" "${FILESYSTEM_MOD_DIR}/etc/avm_firmware_public_key9"
 fi
 
 # ------------------------------------------------------------------
@@ -1575,13 +1611,13 @@ fi
 if [ "$DO_PACK" -gt 0 ]; then
 	[ ! -x "$MKSQUASHFS" ] && error 1 "cannot find $MKSQUASHFS"
 
-	echo0 "creating filesystem image"
+	echo0 "creating ${INNER_FS_PREFIX}filesystem image (SquashFS${FREETZ_SQUASHFS_VERSION}-${FREETZ_AVM_SQUASHFS_COMPRESSION})"
 	echo1 "SquashFS block size: $(($FREETZ_SQUASHFS_BLOCKSIZE/1024)) kB ($FREETZ_SQUASHFS_BLOCKSIZE bytes)"
 
-	rm -f $ABS_BASE_DIR/$CORE_FILESYSTEM_MOD
-	"$MKSQUASHFS" $FILESYSTEM_MOD_DIR/* $ABS_BASE_DIR/$CORE_FILESYSTEM_MOD $MKSQUASHFS_OPTIONS >> $MOD_DIR/filesystem.log 2>&1
+	rm -f $ABS_BASE_DIR/${MAIN_FILESYSTEM_MOD}
+	"$MKSQUASHFS" $FILESYSTEM_MOD_DIR/* $ABS_BASE_DIR/${MAIN_FILESYSTEM_MOD} $MKSQUASHFS_OPTIONS >> $MOD_DIR/filesystem.log 2>&1
 
-	if [ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ]; then
+	if [ "${FREETZ_AVM_HAS_SEPARATE_FILESYSTEM_IMAGE}" == "y" ]; then
 		echo0 "copying kernel image"
 		cp -a "$RAW_KERNEL_MOD" "$KERNEL_MOD"
 	else
@@ -1609,7 +1645,7 @@ if [ "$DO_PACK" -gt 0 ]; then
 	echo1 "kernel image size: $(byte_to_mb $KERNEL_SIZE), max $(byte_to_mb $KERNEL_LIMIT), free $(byte_to_mb $((-KERNEL_DIFF))) ($((-KERNEL_DIFF)) bytes)"
 	[ "$KERNEL_SIZE" -eq 0 ] && error 1 "kernel image is empty"
 	if [ "$KERNEL_SIZE" -gt "$KERNEL_LIMIT" ]; then
-		if [ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ]; then
+		if [ "${FREETZ_AVM_HAS_SEPARATE_FILESYSTEM_IMAGE}" == "y" ]; then
 				error 1 -b "kernel image is $KERNEL_DIFF bytes too big. See http://freetz.org/wiki/FAQ#Filesystemimagetoobig for details."
 		else
 			if [ "$FORCE_PACK" -eq 0 -a "$DO_ZIP" -eq 0 ]; then
@@ -1627,22 +1663,27 @@ if [ "$DO_PACK" -gt 0 ]; then
 # ---------------------------
 # -- Pack filesystem image --
 # ---------------------------
+	if [ "${FREETZ_AVM_HAS_SEPARATE_FILESYSTEM_IMAGE}" == "y" ]; then
 
-	if [ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ]; then
+		if [ "${FREETZ_AVM_HAS_INNER_OUTER_FILESYSTEM}" == "y" ]; then
+			if [ "${FREETZ_AVM_OUTER_FILESYSTEM_TYPE}" == "Ext2FS" ]; then
+				echo0 "creating outer-filesystem image (Ext2FS)"
+				PATH="$TOOLS_DIR:$PATH" $TOOLS_DIR/mke2img -G 2 -R 0 -d "${FILESYSTEM_OUTER_MOD_DIR}" -o "$ABS_BASE_DIR/$RAW_FILESYSTEM_MOD.ext2" >> $MOD_DIR/filesystem.log 2>&1
+				[ $? -ne 0 -o ! -s "$RAW_FILESYSTEM_MOD.ext2" ] && error 1 "creation of ext2 image failed"
 
-		if [ "${FREETZ_AVM_HAS_EXT2_SQUASHFS4_PACKAGING_SCHEME}" == "y" ]; then
-			PATH="$TOOLS_DIR:$PATH" $TOOLS_DIR/mke2img -G 2 -R 0 -d "$FILESYSTEM_CORE_MOD_DIR" -o "$ABS_BASE_DIR/$RAW_FILESYSTEM_MOD.ext2" >> $MOD_DIR/filesystem.log 2>&1
-			[ $? -ne 0 -o ! -s "$RAW_FILESYSTEM_MOD.ext2" ] && error 1 "creation of ext2 image failed"
-
-			{
-				# create pseudo SquashFS-header: "sqsh" followed by 252 zeros
-				echo -n "sqsh" > "$RAW_FILESYSTEM_MOD" && \
-				dd if=/dev/zero of="$RAW_FILESYSTEM_MOD" bs=1 count=252 oflag=append conv=notrunc
-			} >> $MOD_DIR/filesystem.log 2>&1 && \
-			cat "$RAW_FILESYSTEM_MOD.ext2" >> "$RAW_FILESYSTEM_MOD" && \
-			rm -f "$RAW_FILESYSTEM_MOD.ext2"
-		else
-			"$MKSQUASHFS" $FILESYSTEM_CORE_MOD_DIR/* $ABS_BASE_DIR/$RAW_FILESYSTEM_MOD $MKSQUASHFS_OPTIONS >> $MOD_DIR/filesystem.log 2>&1
+				{
+					# create pseudo SquashFS-header: "sqsh" followed by 252 zeros
+					echo -n "sqsh" > "$RAW_FILESYSTEM_MOD" && \
+					dd if=/dev/zero of="$RAW_FILESYSTEM_MOD" bs=1 count=252 oflag=append conv=notrunc
+				} >> $MOD_DIR/filesystem.log 2>&1 && \
+				cat "$RAW_FILESYSTEM_MOD.ext2" >> "$RAW_FILESYSTEM_MOD" && \
+				rm -f "$RAW_FILESYSTEM_MOD.ext2"
+			elif [ "${FREETZ_AVM_OUTER_FILESYSTEM_TYPE}" == "SquashFS" ]; then
+				echo0 "creating outer-filesystem image (SquashFS${FREETZ_SQUASHFS_VERSION}-${FREETZ_AVM_SQUASHFS_COMPRESSION})"
+				"$MKSQUASHFS" ${FILESYSTEM_OUTER_MOD_DIR}/* $ABS_BASE_DIR/$RAW_FILESYSTEM_MOD $MKSQUASHFS_OPTIONS >> $MOD_DIR/filesystem.log 2>&1
+			else
+				error 1 "unknown/unsupported outer-filesystem type \"${FREETZ_AVM_OUTER_FILESYSTEM_TYPE}\""
+			fi
 		fi
 
 		[ ! -s "$RAW_FILESYSTEM_MOD" ] && error 1 "creation of filesystem failed"
@@ -1677,7 +1718,7 @@ if [ "$DO_PACK" -gt 0 ]; then
 
 
 	if [ "$FREETZ_VERBOSITY_LEVEL" -ge 1 ]; then
-		if [ "$FREETZ_AVM_HAS_TAM" = "y" -a "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" != "y" ]; then
+		if [ "$FREETZ_AVM_HAS_TAM" = "y" -a "${FREETZ_AVM_HAS_SEPARATE_FILESYSTEM_IMAGE}" != "y" ]; then
 			# Calculate aproximately free space in seconds for the answering machine
 			# 5*64kB sectors needed, see http://freetz.org/ticket/1680#comment:4
 			FREE_BYTE_JFFS2=$((($KERNEL_LIMIT - $KERNEL_SIZE - 327680)))
@@ -1693,11 +1734,25 @@ if [ "$DO_PACK" -gt 0 ]; then
 			fi
 		fi
 	fi
-	# Do we have the tool ?
-	[ ! -x "$TICHKSUM" ] && error 1 "cannot find tool $TICHKSUM_TOOL"
+
+	# Create in-memory image
+	img_name="${FW_IMAGES_DIR:-$DIR}/${modimage}"
+	if [ "${FREETZ_FWMOD_CREATE_IN_MEMORY_IMAGE}" == "y" ]; then
+		echo0 "creating in-memory image ${img_name}.in-memory"
+		{
+			cat "$KERNEL_MOD"     | dd bs=256 conv=sync 2>/dev/null;
+			cat "$FILESYSTEM_MOD" | dd bs=256 conv=sync 2>/dev/null;
+		} > "${img_name}.in-memory"
+	fi
 
 	# Write checksum
-	"$TICHKSUM" "$KERNEL_MOD" > "${MOD_DIR}/kernelchksum.log"
+	for f in "$KERNEL_MOD" "$FILESYSTEM_MOD"; do
+		[ -s "$f" ] || continue
+
+		fbn=$(basename $f)
+		echo0 "adding checksum to $fbn"
+		"$TICHKSUM" -a "$f" > "${MOD_DIR}/$fbn-chksum.log" || { rm -f "${img_name}.in-memory"; error 1 "adding checksum to $fbn failed"; }
+	done
 
 	# Consistency check
 	if [ -s "${FIRMWARE_DIR}/${KERNEL_IMAGE}" -a ! -s "${FIRMWARE_MOD_DIR}/${KERNEL_IMAGE}" ] || \
@@ -1705,22 +1760,39 @@ if [ "$DO_PACK" -gt 0 ]; then
 		error 1 "inconsistency comparing size of old and new kernel.image"
 	fi
 
-	if [ ! "$DO_AVOID_MOD_IN_STEP3" -gt 0 ]; then
+	# TODO: AVM update routines do not recognize Freetz firmware as properly signed if any additional files are added to the .image tarball
+	if [ ! "$DO_AVOID_MOD_IN_STEP3" -gt 0 -a ! "$DO_SIGN" -gt 0 ]; then
 		# Last, but not least, include .config and addon/static.pkg into firmware
 		# image for further reference, e.g. user support
-		[ -r "$DOT_CONFIG" ] && cp "$DOT_CONFIG" "$FIRMWARE_MOD_DIR/var"
+		[ -r "$DOT_CONFIG" ] && { cat "$DOT_CONFIG" | grep -v "FREETZ_FWMOD_SIGN_PRIVATE_KEY_PASSWORD" > "$FIRMWARE_MOD_DIR/var/.config"; }
 		[ -r "$PACKAGES_LIST_FILE" ] && cp "$PACKAGES_LIST_FILE" "$FIRMWARE_MOD_DIR/var"
 	fi
 
 	# Pack firmware image (use old tar for compatibility)
-	img_name="${FW_IMAGES_DIR:-$DIR}/${modimage}"
 	echo0 "packing $img_name"
-	"$TAR" -C "$FIRMWARE_MOD_DIR" -cf "$img_name" .
+	"$TAR" -C "$FIRMWARE_MOD_DIR" -cf "$img_name" ./var
 	if [ $? -ne 0 ] || ! is_valid_tarball "$img_name"; then
 		mv "${img_name}" "${img_name}.corrupted" 2>/dev/null
 		error 1 "packing of firmware image failed"
 	fi
-	echo1 "image file size: $(byte_to_mb $(wc -c < "$img_name"))"
+	echo1 "image file size: $(byte_to_mb $(wc -c < "${img_name}"))"
+
+	if [ "$DO_SIGN" -gt 0 ]; then
+		echo0 "signing $img_name"
+		if [ -z "${FREETZ_FWMOD_SIGN_PRIVATE_KEY_PASSWORD}" ]; then
+			# be verbose if no private key password provided
+			"${TOOLS_DIR}/yf/signimage/sign_image" "${img_name}" "${FREETZ_FWMOD_SIGN_PRIVATE_KEY_PASSWORD}"                               > "${img_name}.signed"
+		else
+			"${TOOLS_DIR}/yf/signimage/sign_image" "${img_name}" "${FREETZ_FWMOD_SIGN_PRIVATE_KEY_PASSWORD}" 2>"${MOD_DIR}/sign_image.log" > "${img_name}.signed"
+		fi
+		if [ $? -ne 0 ]; then
+			mv "${img_name}.signed" "${img_name}.signed.corrupted" 2>/dev/null
+			error 1 "signing of firmware image failed, see console output or ${MOD_DIR}/sign_image.log for details"
+		fi
+
+		mv "${img_name}.signed" "${img_name}"
+		echo1 "signed image file size: $(byte_to_mb $(wc -c < "${img_name}"))"
+	fi
 fi
 
 # ----------------------------------------------
@@ -1730,7 +1802,7 @@ fi
 if [ "$action_names" ]; then
 	# Pack externalised files
 	if [ "$EXTERNAL_CREATEPAK" == "y" -a -n "$externalised_files" ]; then
-		tplexternal="${modimagenameprefix}${modbaseimagename}${modimagenamesuffix}_$modmakedate"
+		tplexternal="${modimagenameprefix}${modbaseimagename}${modimagenamesuffix}_${modmakedate}"
 		#static packages
 		modexternal="${FW_IMAGES_DIR:-$DIR}/${tplexternal}.external"
 		echo "packing ${modexternal}"

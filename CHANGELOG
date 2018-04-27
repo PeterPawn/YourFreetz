@@ -10,16 +10,17 @@ Latest changes:
   * kconfig 3.11-rc3
   * kernel-/target-toolchain:
     + update gcc-4.7.x version to 4.7.4
-    + add support for gcc-4.8.x/4.9.x
+    + add support for gcc-4.8.x/4.9.x/5.x
   * support for a 3rd (auxiliary) firmware
-  * fakeroot: bump version to 1.20.2
+  * fakeroot: bump version to 1.22
   * lzma SDK: bump lzma SDK version to 4.65
-  * sfk: bump version to 1.7.2
+  * sfk: bump version to 1.8.8
   * squashfs* tools:
     + unify all host- and target-patches (i.e. use the same set of patches for both the host and the target packages)
     + switch to using a C only version of liblzma instead of the C++ version used so far
   * squashfs3 tools: revise LZMA related patches so that the resulting binaries support
                      both ZLIB and LZMA compression methods at the same time
+  * tar: bump version to 1.29
 
 - New tools and hooks:
   * fwdu: script to download (and unpack) all firmwares from ftp.avm.de
@@ -33,130 +34,144 @@ Latest changes:
 - New patches (read online help for more info):
 
 - New packages, libs, modules:
-    * asterisk 11.21.2
+    * asterisk 11.25.3
     * asterisk-chan-capi post-1.1.6 with asterisk11 adjustments by Mihai Moldovan
     * asterisk-chan-dongle 1.1-git (asterisk11 branch)
     * asterisk-chan-sccp 4.1.0RC1
     * asterisk-gui 2.1.0RC1
+    * atop 2.2.3
     * autossh 1.4e
     * avm-forwarding 0.0.1
     * axTLS wrapper 1.4.9
+    * bvi 1.4.0
     * cntlm 0.93beta5
     * decrypt FRITZ!OS configs v0.2 (renamed version of PeterPawn's script decode_passwords)
     * ISC dhcp 4.3.3-P1
     * E-MailRelay 1.9
+    * gptfdisk 1.0.1
     * iksemel 1.5-git
+    * iperf 3.5
     * jansson 2.7
+    * jq 1.5
     * libavmacl2 (taken from AVM's 7490.06.30 open-source package)
     * libcap 2.24
     * libgsm-1.0.13
-    * libnettle 3.2
+    * libmnl 1.0.4
+    * libnettle 3.4
+    * liblz4 1.7.5
+    * libonig 6.7.1
     * libsrtp-1.4.4+20100615
+    * libssh2 1.8.0
     * libusb-compat 0.1.5
     * lzma1 4.65
+    * mbed TLS 2.7.2
     * nzbget 14.1
     * PJProject 2.2.1
-    * Fritz!Box private key password framework
+    * Fritz!Box private key password framework v0.6 (by PeterPawn)
     * python-cheetah 2.4.4
     * python-mechanize 0.2.5
     * python-yEnc 0.4.0
-    * serf 1.3.8
+    * serf 1.3.9
     * ScanButton 0.2.3.cvs20090713
     * speex 1.2rc1
     * spandsp 0.0.6pre21
     * squashfs-tools 3.4
     * squashfs-tools 4.3 (modified to support AVM-BE format)
-    * xz 5.2.2
+    * WireGuard 0.0.20180420
+    * xz 5.2.3
 
 - Updated tools and hooks:
 
 - Updated patches:
 
 - Updated packages and libs:
-    * apache 2.4.18
-    * apr 1.5.2
-    * apr-util 1.5.4
+    * apache 2.4.29
+    * apr 1.6.3
+    * apr-util 1.6.1
     * bash 3.2.57
     * bind 9.10.3-P4
     * bip 0.8.9
     * bird 1.4.0
     * CCID 1.4.18
-    * cifs-utils 6.5
+    * cifs-utils 6.6
     * cryptsetup 1.7.0
-    * curl 7.48.0
+    * curl 7.59.0
     * davfs2 1.5.2
     * dbus 1.8.20
-    * dnsmasq 2.75
+    * dnsmasq 2.79
     * dosfstools 3.0.28
-    * dropbear 2016.73
+    * dropbear 2018.76
     * e2fsprogs 1.42.13
     * espeak 1.48.04
-    * expat 2.1.1
+    * expat 2.2.5
     * ffmpeg 1.2.12
     * freetype 2.5.5
+    * fuse 2.9.7
     * gdb 7.9.1
-    * git 2.7.4
-    * gmp 6.1.0
-    * gnu-make 4.1
-    * gnutls 3.4.10
+    * git 2.16.1
+    * gmp 6.1.2
+    * gnu-make 4.2.1
+    * gnutls 3.5.12
     * haproxy 1.5.11
     * haserl 0.9.35
     * hplip 3.14.6
     * htop 1.0.3
     * httpry 0.1.8
-    * ImageMagick 6.9.3-0
-    * inadyn-mt 02.24.49
+    * ImageMagick 7.0.5-4
+    * inadyn-mt 02.28.10
     * iodine 0.7.0
     * jpeg 6b2
     * knock 0.7
-    * lftp 4.6.5
+    * lftp 4.8.3
     * libcapi avm-(7390|7270).05.50
     * libconfig 1.5
-    * libevent 2.0.22
+    * libevent 2.1.8
     * libffi 3.2.1
-    * libFLAC 1.3.1
+    * libFLAC 1.3.2
     * libgcrypt 1.6.5
-    * libgd 2.1.1
-    * libgpg-error 1.20
-    * liblzo 2.09
-    * libneon 0.30.1
+    * libgd 2.2.5
+    * libgpg-error 1.24
+    * liblzo 2.10
+    * libneon 0.30.2
     * libogg 1.3.2
-    * libopus 1.1.2
-    * libpng 1.2.56
+    * libopus 1.1.4
+    * libpng 1.2.57
     * libpopt 1.16
-    * libtasn1 4.7
-    * libtiff 4.0.6
-    * libusb1 1.0.20
+    * libtasn1 4.12
+    * libtiff 4.0.7
+    * libusb1 1.0.21
     * libvorbis 1.3.5
-    * libxml 2.9.3
-    * lighttpd 1.4.39
+    * libxml 2.9.5
+    * libxslt/xsltproc 1.1.30
+    * lighttpd 1.4.45
     * lsof 4.89
     * ltrace 0.7.91-git
     * lynx 2.8.8
-    * mc 4.8.16
-    * minidlna 1.1.5
-    * mpc 1.0.3
-    * mpfr 3.1.4
+    * mc 4.8.20
+    * minidlna 1.2.1
+    * mpc 1.1.0
+    * mpfr 3.1.6
     * nano 2.4.3
+    * ncftp-3.2.6
     * netatalk 2.2.5
     * ngircd 22
     * noip 2.1.9-1
-    * ntfs-3g 2016.2.22
+    * ntfs-3g 2017.3.23
     * obexftp 0.23
     * openconnect 7.04
-    * openssh 7.2p2
-    * openssl 0.9.8zh/1.0.1s
-    * openvpn 2.3.10
-    * pcre 8.38
+    * openssh 7.7p1
+    * openssl 0.9.8zh/1.0.2o
+    * openvpn 2.3.18/2.4.6
+    * pcre 8.41
     * pcscd 1.8.12
-    * php 5.4.45/5.5.31
-    * privoxy 3.0.24
-    * polarssl 1.2.19/1.3.16
+    * php 5.6.34
+    * privoxy 3.0.26
+    * polarssl 1.2.19/1.3.22
     * polipo 1.1.1
     * pppd 2.4.7
     * pptpd 1.4.0
     * protobuf-c 1.1.0
-    * Python 2.7.11
+    * Python 2.7.14
     * python-bjoern 1.3.4
     * pycrypto 2.6.1
     * pycurl 7.43.0
@@ -164,45 +179,54 @@ Latest changes:
     * radvd 1.9.3
     * readline 6.3-p8
     * rsync 3.1.2
-    * ruby 1.8.7-p374/1.9.3-p547
-    * ruby-fcgi 0.9.2.1-git
     * samba 3.6.25
-    * sane-backends 1.0.25
-    * smartmontools 6.2
-    * sqlite 3.11.1
-    * sslh 1.17
+    * sane-backends 1.0.27
+    * screen 4.6.2
+    * slang 2.3.1a
+    * smartmontools 6.6
+    * sqlite 3.21.0
+    * sslh 1.18
     * strace 4.8
-    * stunnel 5.31
-    * subversion 1.7.22/1.8.15/1.9.3
-    * tinc 1.0.25
+    * stunnel 5.44
+    * subversion 1.8.19/1.9.7
+    * tinc 1.0.33/1.1pre15
     * tinyproxy 1.8.3
-    * tmux 2.0
-    * tor 0.2.7.6
-    * transmission 2.92
+    * tmux 2.5
+    * tor 0.3.2.10
+    * transmission 2.93
     * tree 1.7.0
-    * truecrypt 7.2
     * uClibc++ 0.2.5-git
+    * udpxy 1.0.23-9
     * usbutils 007
-    * umurmur 0.2.15
-    * unrar 5.3.8 (=rar 5.30)
+    * umurmur 0.2.17
+    * unrar 5.5.8 (=rar 5.50)
     * usbip 0.1.8
     * util-linux-ng 2.27.1
     * vim 7.4.663
+    * vnstat 1.17
     * vsftpd 3.0.3
-    * wget 1.17.1
+    * vtun 3.0.4
+    * wget 1.19.4
     * xpdf 3.04
     * Zabbix 2.4.6
-    * zlib 1.2.8
+    * zlib 1.2.11
 
 - Removed packages, libs, modules, tools:
+    * apache 1.x
+    * aiccu
     * cyassl
+    * MatrixSSL/MatrixTunnel (outdated, unmaintained, probably unsafe)
     * openvpn 2.2.x
+    * php 5.5.x
+    * ruby/ruby-fcgi
+    * truecrypt
+    * wxWidgets
 
 - Firmware updates:
     * Please see FIRMWARES for the list of currently supported boxes and firmwares.
 
 - BusyBox:
-    * Updated to version 1.24.2
+    * Updated to version 1.27.2
 
 - Web interface:
     * add basic web interface for HAProxy

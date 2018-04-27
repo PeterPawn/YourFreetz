@@ -4,12 +4,13 @@
 [ "$FREETZ_AVM_UCLIBC_0_9_29" == "y" ] && version="0.9.29"
 [ "$FREETZ_AVM_UCLIBC_0_9_32" == "y" ] && version="0.9.32"
 [ "$FREETZ_AVM_UCLIBC_0_9_33" == "y" ] && version="0.9.33.2"
+[ "$FREETZ_AVM_UCLIBC_1_0_14" == "y" ] && version="1.0.14"
 
 [ -z "$version" ] && error 1 "FREETZ_AVM_UCLIBC is not configured"
 
 echo1 "removing uClibc-${version} files"
 rm_files "${FILESYSTEM_MOD_DIR}/lib/*${version}*"
-[ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ] && rm_files "${FILESYSTEM_CORE_MOD_DIR}/lib/*${version}*"
+[ "${FREETZ_AVM_HAS_INNER_OUTER_FILESYSTEM}" == "y" ] && rm_files "${FILESYSTEM_OUTER_MOD_DIR}/lib/*${version}*"
 
 echo1 "removing uClibc links"
 for link in \
@@ -32,9 +33,9 @@ for link in \
 	rm_files "${FILESYSTEM_MOD_DIR}/lib/$link"
 	rm_files "${FILESYSTEM_MOD_DIR}/usr/lib/$link"
 
-	if [ "${FREETZ_AVM_HAS_UPDATE_FILESYSTEM_IMAGE}" == "y" ]; then
-		rm_files "${FILESYSTEM_CORE_MOD_DIR}/lib/$link"
-		rm_files "${FILESYSTEM_CORE_MOD_DIR}/usr/lib/$link"
+	if [ "${FREETZ_AVM_HAS_INNER_OUTER_FILESYSTEM}" == "y" ]; then
+		rm_files "${FILESYSTEM_OUTER_MOD_DIR}/lib/$link"
+		rm_files "${FILESYSTEM_OUTER_MOD_DIR}/usr/lib/$link"
 	fi
 done
 

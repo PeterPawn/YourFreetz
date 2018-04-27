@@ -46,20 +46,28 @@ comment "GnuTLS ---------------------------------"
 source make/gnutls/Config.in.libs
 source make/libs/libtasn1/Config.in
 
+comment "mbed TLS -------------------------------"
+source make/libs/mbedtls/Config.in
+
 comment "Nettle ---------------------------------"
 source make/libs/nettle/Config.in
 
-comment "SSL ------------------------------------"
-source make/libs/matrixssl/Config.in
-source make/libs/polarssl12/Config.in
-source make/libs/polarssl13/Config.in
+comment "OpenSSL --------------------------------"
 source make/openssl/Config.in.libs
 source make/libs/libavmhmac/Config.in
+
+comment "PolarSSL -------------------------------"
+source make/libs/polarssl12/Config.in
+source make/libs/polarssl13/Config.in
+
+comment "SSH ------------------------------------"
+source make/libs/libssh2/Config.in
 
 endmenu ### "Crypto & SSL"
 
 menu "Data compression"
 
+source make/libs/lz4/Config.in
 source make/xz/Config.in.libs
 source make/libs/lzo/Config.in
 source make/libs/zlib/Config.in
@@ -164,6 +172,7 @@ source make/libs/libdnet/Config.in
 source make/libs/libgsm/Config.in
 source make/libs/iksemel/Config.in
 source make/libs/libpcap/Config.in
+source make/libs/libmnl/Config.in
 source make/libs/libnet/Config.in
 source make/libs/liboping/Config.in
 source make/libs/libosip2/Config.in
@@ -184,6 +193,7 @@ endmenu ### "Readline"
 
 menu "Regular expressions"
 
+source make/libs/libonig/Config.in
 source make/libs/pcre/Config.in
 
 endmenu ### "Regular expressions"
@@ -231,7 +241,6 @@ source make/libs/libelf/Config.in
 source make/libs/libev/Config.in
 source make/libs/libevent/Config.in
 source make/libs/libffi/Config.in
-source make/libs/libfakefile/Config.in
 source make/libs/libctlmgr/Config.in
 source make/libs/libmultid/Config.in
 source make/libs/libtool/Config.in
@@ -245,5 +254,4 @@ source make/rrdtool/Config.in.libs
 source make/slang/Config.in.libs
 source make/libs/libsynce/Config.in
 source make/libs/sysfsutils/Config.in
-source make/libs/wxWidgets/Config.in
 source make/libs/yaml/Config.in

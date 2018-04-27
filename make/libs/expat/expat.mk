@@ -1,15 +1,16 @@
-$(call PKG_INIT_LIB, 2.1.1)
-$(PKG)_LIB_VERSION:=1.6.0
+$(call PKG_INIT_LIB, 2.2.5)
+$(PKG)_LIB_VERSION:=1.6.7
 $(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.bz2
-$(PKG)_SOURCE_MD5:=7380a64a8e3a9d66a9887b01d0d7ea81
+$(PKG)_SOURCE_MD5:=789e297f547980fc9ecc036f9a070d49
 $(PKG)_SITE:=@SF/expat
 
-$(PKG)_BINARY:=$($(PKG)_DIR)/.libs/libexpat.so.$($(PKG)_LIB_VERSION)
+$(PKG)_BINARY:=$($(PKG)_DIR)/lib/.libs/libexpat.so.$($(PKG)_LIB_VERSION)
 $(PKG)_STAGING_BINARY:=$(TARGET_TOOLCHAIN_STAGING_DIR)/usr/lib/libexpat.so.$($(PKG)_LIB_VERSION)
 $(PKG)_TARGET_BINARY:=$($(PKG)_TARGET_DIR)/libexpat.so.$($(PKG)_LIB_VERSION)
 
 $(PKG)_CONFIGURE_OPTIONS += --enable-shared
 $(PKG)_CONFIGURE_OPTIONS += --enable-static
+$(PKG)_CONFIGURE_OPTIONS += --without-xmlwf
 
 $(PKG_SOURCE_DOWNLOAD)
 $(PKG_UNPACKED)

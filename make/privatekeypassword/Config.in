@@ -1,5 +1,13 @@
+config FREETZ_BOX_CERTIFICATE_SUPPORT_AVAILABLE
+	bool
+	depends on FREETZ_AVM_VERSION_06_0X_MIN
+	default y
+
 config FREETZ_PACKAGE_PRIVATEKEYPASSWORD
-	bool "private key password framework (binary only)"
-	depends on FREETZ_AVM_VERSION_06_2X_MIN
+	bool "privatekeypassword 0.6"
+	depends on FREETZ_BOX_CERTIFICATE_SUPPORT_AVAILABLE
 	select FREETZ_LIB_libprivatekeypassword
 	default n
+	help
+		Reveals the password for AVM's private key file (/var/flash/websrv_ssl_key.pem),
+		makes it possible to reuse it for other packages.

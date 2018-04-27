@@ -1,0 +1,11 @@
+--- Makefile.org
++++ Makefile.org
+@@ -137,7 +137,7 @@
+ 
+ BASEADDR=
+ 
+-DIRS=   crypto ssl engines apps test tools
++DIRS=   crypto ssl         apps
+ ENGDIRS= ccgost
+ SHLIBDIRS= crypto ssl
+ 

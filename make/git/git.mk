@@ -1,6 +1,6 @@
-$(call PKG_INIT_BIN, 2.7.4)
+$(call PKG_INIT_BIN, 2.16.1)
 $(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.xz
-$(PKG)_SOURCE_SHA256:=dee574defbe05ec7356a0842ddbda51315926f2fa7e39c2539f2c3dcc52e457b
+$(PKG)_SOURCE_SHA256:=cfad4337f2fdbfc1e2c8abce5e17e1dd4e1718a34ac2cbe3238fbe2426f2ea19
 $(PKG)_SITE:=@KERNEL/software/scm/git
 
 # files to be moved from /usr/lib/git-core to /usr/bin
@@ -14,6 +14,9 @@ $(PKG)_BINARY_TARGET_DIR := $($(PKG)_DEST_DIR)/usr/bin/git
 $(PKG)_DEPENDS_ON += curl expat openssl zlib
 ifeq ($(strip $(FREETZ_TARGET_UCLIBC_0_9_28)),y)
 $(PKG)_DEPENDS_ON += iconv
+endif
+ifeq ($(strip $(FREETZ_PACKAGE_GIT_WITH_PCRE)),y)
+$(PKG)_DEPENDS_ON += pcre
 endif
 
 $(PKG)_EXCLUDED+=$(if $(FREETZ_PACKAGE_GIT_REMOVE_WEBIF),etc/default.git etc/init.d/rc.git usr/lib/cgi-bin/git.cgi)
@@ -41,6 +44,7 @@ $(PKG)_CONFIGURE_OPTIONS += --without-python
 $(PKG)_CONFIGURE_OPTIONS += --without-tcltk
 
 $(PKG)_MAKE_PARAMS := V=1 NO_NSEC=1 STRIP="$(TARGET_STRIP)" NO_INSTALL_HARDLINKS=y
+$(PKG)_MAKE_PARAMS += NO_LIBPCRE1_JIT=1
 $(PKG)_MAKE_PARAMS += EXTRA_CFLAGS="-ffunction-sections -fdata-sections" EXTRA_LDFLAGS="-Wl,--gc-sections"
 
 $(PKG_SOURCE_DOWNLOAD)

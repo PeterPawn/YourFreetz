@@ -645,6 +645,13 @@ config FREETZ_REMOVE_LIBFUSE
 		This removes libfuse.so and saves about 132 KB (uncompressed).
 		NTFS and Webdav are also removed.
 
+config FREETZ_REMOVE_EXT2
+	bool "Remove ext2.ko"
+	default n
+	depends on FREETZ_AVM_HAS_USB_HOST && !FREETZ_AVM_HAS_EXT2_BUILTIN
+	help
+		Remove ext2.ko (about 81 kB uncompressed / 24 kB compressed).
+
 config FREETZ_REMOVE_ISOFS
 	bool "Remove isofs.ko"
 	default n
@@ -729,6 +736,28 @@ config FREETZ_REMOVE_NTFS
 		This patch will remove ntfs-3g dependent files from the firmware.
 		Be careful, mounting volumes with this filesystem will not work.
 		It saves about 118K compressed space in kernel.image.
+
+config FREETZ_REMOVE_NLS
+	bool "Remove NLS"
+	depends on FREETZ_AVM_HAS_USB_HOST
+	default n
+	help
+		Remove NLS support
+		This patch will remove all the nls_*.ko kernel module from the firmware.
+		This may affect mounting FAT, NTFS and other filesystems.
+		You can add some of the Freetz kernel nls modules if you need them.
+
+config FREETZ_REMOVE_USBHOST
+	bool "Remove USB Host"
+	depends on FREETZ_AVM_HAS_USB_HOST
+	default n
+	help
+		Remove USB Host
+		This patch will remove all the kernel modules needed for the USB Host from the firmware.
+		You will not be able to use USB storage or USB printers unless you provide a way to
+		download and install these modules at runtime.
+		Selecting this patch does not automatically select the patches to remove the
+		kernel modules for the file systems (EXT2, FAT, NTFS, ...)
 
 config FREETZ_REMOVE_PRINTSERV
 	bool "Remove printserv"
@@ -1039,12 +1068,13 @@ config FREETZ_PATCH_BETA_ATTRIBUTES
 	bool "Patch Beta/Labor attributes"
 	depends on \
 		FREETZ_AVM_VERSION_05_2X && \
+		!FREETZ_TYPE_ALIEN_HARDWARE && \
 		FREETZ_TYPE_LANG_DE && \
 		( \
 		FREETZ_TYPE_7270_16 || \
 		FREETZ_TYPE_7390 \
 		)
-	default n
+	default y
 	help
 		This patch removes Beta/Labor attributes from some
 		(older) firmwares AVM released only as Betas so far.
@@ -1140,7 +1170,7 @@ config FREETZ_PATCH_SIGNED
 		Hides the "unsupported changes" message from the web interface.
 
 config FREETZ_ENABLE_LED_DEACTIVATION
-	bool "Enables LED deactivation page"
+	bool "Enable LED deactivation page"
 	depends on FREETZ_AVM_VERSION_06_0X_MIN
 	default n
 	help
@@ -1151,7 +1181,6 @@ comment "USB patches --------------------"
 
 config FREETZ_PATCH_FREETZMOUNT
 	bool "FREETZMOUNT: Patch AVMs hotplug scripts, USB storage names, ..."
-	depends on FREETZ_KERNEL_VERSION_2_6_32_MAX
 	select FREETZ_USBSTORAGE_AUTOMOUNT
 	select FREETZ_BUSYBOX_BLKID              if FREETZ_REMOVE_AVM_E2FSPROGS || !FREETZ_AVM_HAS_E2FSPROGS
 	select FREETZ_BUSYBOX_FEATURE_BLKID_TYPE if FREETZ_REMOVE_AVM_E2FSPROGS || !FREETZ_AVM_HAS_E2FSPROGS
@@ -1484,6 +1513,16 @@ config FREETZ_DISABLE_DEBUG_CFG_SUPPORT
 
 		Warning: if selected you won't be able to install/start
 		such 3rd-party extensions like FHEM, LCR Updater, etc.
+
+config FREETZ_ASYNCHRONOUS_DEBUG_CFG
+	bool "Process /var/flash/debug.cfg asynchronously"
+	depends on ( FREETZ_AVM_HAS_DEBUG_CFG_SUPPORT && !FREETZ_DISABLE_DEBUG_CFG_SUPPORT) \
+		|| (!FREETZ_AVM_HAS_DEBUG_CFG_SUPPORT &&  FREETZ_RESTORE_DEBUG_CFG_SUPPORT)
+	default n
+	help
+		Enables asynchronous processing of /var/flash/debug.cfg.
+
+		Requires AVM's /sbin/delay binary in order to work.
 
 comment "AVM daemons ----------------------------"
 

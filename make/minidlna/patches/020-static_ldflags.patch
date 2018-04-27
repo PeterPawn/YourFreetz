@@ -1,6 +1,6 @@
 --- configure
 +++ configure
-@@ -10457,7 +10457,7 @@
+@@ -10568,7 +10568,7 @@
  	if test "$enableval" = "yes"; then
  		STATIC_CFLAGS="-DSTATIC"
  

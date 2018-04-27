@@ -1,6 +1,6 @@
-$(call PKG_INIT_BIN, 1.24.2)
+$(call PKG_INIT_BIN, 1.27.2)
 $(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.bz2
-$(PKG)_SOURCE_MD5:=2eaae519cac1143bcf583636a745381f
+$(PKG)_SOURCE_MD5:=476186f4bab81781dab2369bfd42734e
 $(PKG)_SITE:=http://www.busybox.net/downloads
 
 $(PKG)_CONDITIONAL_PATCHES += $(call qstrip,$(FREETZ_KERNEL_VERSION_MAJOR))
@@ -14,7 +14,7 @@ $(PKG)_TARGET_BINARY:=$($(PKG)_TARGET_DIR)/$(pkg)
 $(PKG)_MAKE_FLAGS += CC="$(TARGET_CC)"
 $(PKG)_MAKE_FLAGS += CROSS_COMPILE="$(TARGET_MAKE_PATH)/$(TARGET_CROSS)"
 $(PKG)_MAKE_FLAGS += EXTRA_CFLAGS="$(TARGET_CFLAGS)"
-$(PKG)_MAKE_FLAGS += ARCH="mips"
+$(PKG)_MAKE_FLAGS += ARCH="$(TARGET_ARCH)"
 
 include $(MAKE_DIR)/busybox/busybox.rebuild-subopts.mk.in
 

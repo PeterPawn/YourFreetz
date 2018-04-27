@@ -3,8 +3,6 @@ $(PKG)_NAME_NO_HYPHEN:=$(subst -,,$(pkg))
 $(PKG)_SOURCE:=$($(PKG)_NAME_NO_HYPHEN)-$($(PKG)_VERSION).tar.xz
 $(PKG)_SITE:=git@https://github.com/jstasiak/asterisk-chan-dongle.git
 
-$(PKG)_DIR:=$($(PKG)_SOURCE_DIR)/$($(PKG)_NAME_NO_HYPHEN)-$($(PKG)_VERSION)
-
 $(PKG)_BINARY := $($(PKG)_DIR)/chan_dongle.so
 $(PKG)_BINARY_TARGET := $($(PKG)_DEST_DIR)$(ASTERISK_MODULES_DIR)/chan_dongle.so
 
@@ -21,6 +19,9 @@ $(PKG)_REBUILD_SUBOPTS += FREETZ_PACKAGE_ASTERISK_LOWMEMORY
 $(PKG)_REBUILD_SUBOPTS += FREETZ_PACKAGE_ASTERISK_DEBUG
 
 $(PKG)_CONFIGURE_PRE_CMDS += $(AUTORECONF)
+# the only reason for calling automake is to install: config.sub, config.guess, install-sh, etc.
+# the package itself is a non-automake package
+$(PKG)_CONFIGURE_PRE_CMDS += automake --force-missing --add-missing 2>/dev/null;
 
 $(PKG)_CONFIGURE_OPTIONS += --with-asterisk=$(ASTERISK_INSTALL_DIR_ABSOLUTE)/usr/include
 

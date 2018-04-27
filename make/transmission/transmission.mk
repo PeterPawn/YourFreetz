@@ -1,24 +1,8 @@
-# Set to y if you want to build transmission from svn.
-# You might need to update the patches yourself.
-# Unsupported, use at your own risk!
-TRANSMISSION_FROM_SVN:=n
-
-ifeq ($(TRANSMISSION_FROM_SVN),y)
-$(call PKG_INIT_BIN, 14714)
+$(call PKG_INIT_BIN, 2.93)
 $(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.xz
-$(PKG)_SITE:=svn://svn.transmissionbt.com/Transmission/tags/2.92
-
-$(PKG)_PATCH_POST_CMDS += $(SED) -i -r -e '/^m4_define.+user_agent_prefix/s,[+],,g' -e '/^m4_define.+peer_id_prefix/s,[XZ]-,0-,g' configure.ac;
-$(PKG)_PATCH_POST_CMDS += $(call POLARSSL_HARDCODE_VERSION,13,configure.ac)
-
-$(PKG)_CONFIGURE_PRE_CMDS += AUTOGEN_SUBDIR_MODE=y ./autogen.sh;
-else
-$(call PKG_INIT_BIN, 2.92)
-$(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.xz
-$(PKG)_SOURCE_SHA256:=3a8d045c306ad9acb7bf81126939b9594553a388482efa0ec1bfb67b22acd35f
-$(PKG)_SITE:=http://download.transmissionbt.com/files,https://transmission.cachefly.net
+$(PKG)_SOURCE_SHA256:=8815920e0a4499bcdadbbe89a4115092dab42ce5199f71ff9a926cfd12b9b90b
+$(PKG)_SITE:=https://github.com/transmission/transmission-releases/raw/master
 $(PKG)_PATCH_POST_CMDS += $(call POLARSSL_HARDCODE_VERSION,13,configure)
-endif
 
 $(PKG)_PATCH_POST_CMDS += $(call POLARSSL_HARDCODE_VERSION,13,libtransmission/crypto-utils-polarssl.c cmake/FindPolarSSL.cmake)
 
@@ -65,7 +49,7 @@ $(PKG)_CONFIGURE_OPTIONS += --enable-utp
 $(PKG)_CONFIGURE_OPTIONS += --with-crypto=$(if $(FREETZ_PACKAGE_TRANSMISSION_WITH_OPENSSL),openssl)$(if $(FREETZ_PACKAGE_TRANSMISSION_WITH_POLARSSL),polarssl)
 
 # add EXTRA_(C|LD)FLAGS
-$(PKG)_CONFIGURE_PRE_CMDS += find $(abspath $($(PKG)_DIR)) -name Makefile.in -type f -exec $(SED) -i -r -e 's,^(C|LD)FLAGS[ \t]*=[ \t]*@\1FLAGS@,& $$$$(EXTRA_\1FLAGS),' \{\} \+;
+$(PKG)_CONFIGURE_PRE_CMDS += $(call PKG_ADD_EXTRA_FLAGS,(C|LD)FLAGS)
 $(PKG)_EXTRA_CFLAGS  += -ffunction-sections -fdata-sections
 $(PKG)_EXTRA_LDFLAGS += -Wl,--gc-sections
 

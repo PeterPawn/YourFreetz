@@ -15,7 +15,7 @@ config FREETZ_PACKAGE_SANE_BACKENDS
 	select FREETZ_PACKAGE_SANE_BACKENDS_BACKEND_dll
 	select FREETZ_LIB_libm
 	select FREETZ_LIB_libpthread
-	select FREETZ_LIB_libusb_0
+	select FREETZ_LIB_libusb_1
 	default n
 	help
 		SANE - Scanner support
@@ -55,7 +55,7 @@ EOF
 EOF
 		}
 
-		if ($backend =~ /dc210|dc240/) {
+		if ($backend =~ /dc210|dc240|epsonds/) {
 			print $out <<EOF;
 	select FREETZ_LIB_libjpeg
 EOF
@@ -89,7 +89,7 @@ EOF
 ifeq (\$(strip \$(FREETZ_PACKAGE_SANE_BACKENDS_BACKEND_$backend)),y)
 SANE_BACKENDS+=$backend
 EOF
-		if ($backend =~ /dc210|dc240/) {
+		if ($backend =~ /dc210|dc240|epsonds/) {
 			print $out <<EOF;
 \$(PKG)_DEPENDS_ON+= jpeg
 EOF

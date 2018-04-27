@@ -1,7 +1,7 @@
-$(call PKG_INIT_BIN, 7.48.0)
-$(PKG)_LIB_VERSION:=4.4.0
-$(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.bz2
-$(PKG)_SOURCE_SHA256:=864e7819210b586d42c674a1fdd577ce75a78b3dda64c63565abe5aefd72c753
+$(call PKG_INIT_BIN, 7.59.0)
+$(PKG)_LIB_VERSION:=4.5.0
+$(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.xz
+$(PKG)_SOURCE_SHA256:=e44eaabdf916407585bf5c7939ff1161e6242b6b015d3f2f5b758b2a330461fc
 $(PKG)_SITE:=http://curl.haxx.se/download
 
 $(PKG)_BINARY:=$($(PKG)_DIR)/src$(if $(FREETZ_PACKAGE_CURL_STATIC),,/.libs)/curl
@@ -17,20 +17,30 @@ endif
 ifeq ($(strip $(FREETZ_LIB_libcurl_WITH_POLARSSL)),y)
 $(PKG)_DEPENDS_ON += polarssl13
 endif
+ifeq ($(strip $(FREETZ_LIB_libcurl_WITH_MBEDTLS)),y)
+$(PKG)_DEPENDS_ON += mbedtls
+endif
+ifeq ($(strip $(FREETZ_LIB_libcurl_WITH_SFTP)),y)
+$(PKG)_DEPENDS_ON += libssh2
+endif
 ifeq ($(strip $(FREETZ_LIB_libcurl_WITH_ZLIB)),y)
 $(PKG)_DEPENDS_ON += zlib
 endif
 
-$(PKG)_PATCH_POST_CMDS += $(call POLARSSL_HARDCODE_VERSION,13,configure lib/urldata.h lib/vtls/polarssl.c)
+$(PKG)_PATCH_POST_CMDS += $(call POLARSSL_HARDCODE_VERSION,13,configure lib/urldata.h lib/vtls/polarssl.h lib/vtls/polarssl.c)
 
 $(PKG)_REBUILD_SUBOPTS += FREETZ_LIB_libcurl_WITH_SSL
 $(PKG)_REBUILD_SUBOPTS += FREETZ_LIB_libcurl_WITH_OPENSSL
 $(PKG)_REBUILD_SUBOPTS += FREETZ_LIB_libcurl_WITH_POLARSSL
+$(PKG)_REBUILD_SUBOPTS += FREETZ_LIB_libcurl_WITH_MBEDTLS
+$(PKG)_REBUILD_SUBOPTS += FREETZ_LIB_libcurl_WITH_SFTP
 $(PKG)_REBUILD_SUBOPTS += FREETZ_LIB_libcurl_WITH_ZLIB
 $(PKG)_REBUILD_SUBOPTS += FREETZ_PACKAGE_CURL_STATIC
 $(PKG)_REBUILD_SUBOPTS += FREETZ_TARGET_IPV6_SUPPORT
 
 $(PKG)_CONFIGURE_PRE_CMDS += $(call PKG_PREVENT_RPATH_HARDCODING,./configure)
+
+$(PKG)_CONFIGURE_PRE_CMDS += $(call PKG_MAKE_AC_VARIABLES_PACKAGE_SPECIFIC,func_pthread_create lib_pthread_pthread_create)
 
 $(PKG)_CONFIGURE_ENV += curl_cv_writable_argv=yes
 
@@ -39,29 +49,50 @@ $(PKG)_CONFIGURE_OPTIONS += --enable-static
 $(PKG)_CONFIGURE_OPTIONS += --enable-shared
 $(PKG)_CONFIGURE_OPTIONS += --disable-rpath
 $(PKG)_CONFIGURE_OPTIONS += --with-gnu-ld
+
+$(PKG)_CONFIGURE_OPTIONS += --disable-ares
 $(PKG)_CONFIGURE_OPTIONS += --disable-thread
+$(PKG)_CONFIGURE_OPTIONS += --enable-nonblocking
+
+$(PKG)_CONFIGURE_OPTIONS += --disable-debug
+$(PKG)_CONFIGURE_OPTIONS += --disable-manual
+$(PKG)_CONFIGURE_OPTIONS += --disable-verbose
+
 $(PKG)_CONFIGURE_OPTIONS += --enable-cookies
 $(PKG)_CONFIGURE_OPTIONS += --enable-crypto-auth
-$(PKG)_CONFIGURE_OPTIONS += --enable-nonblocking
 $(PKG)_CONFIGURE_OPTIONS += --enable-file
 $(PKG)_CONFIGURE_OPTIONS += --enable-ftp
 $(PKG)_CONFIGURE_OPTIONS += --enable-http
-$(PKG)_CONFIGURE_OPTIONS += --disable-ares
-$(PKG)_CONFIGURE_OPTIONS += --disable-debug
+$(PKG)_CONFIGURE_OPTIONS += --enable-proxy
+$(PKG)_CONFIGURE_OPTIONS += --enable-rtsp
+$(PKG)_CONFIGURE_OPTIONS += --enable-unix-sockets
+
 $(PKG)_CONFIGURE_OPTIONS += --disable-dict
 $(PKG)_CONFIGURE_OPTIONS += --disable-gopher
+$(PKG)_CONFIGURE_OPTIONS += --disable-imap
 $(PKG)_CONFIGURE_OPTIONS += --disable-ldap
-$(PKG)_CONFIGURE_OPTIONS += --disable-manual
+$(PKG)_CONFIGURE_OPTIONS += --disable-ldaps
+$(PKG)_CONFIGURE_OPTIONS += --disable-pop3
+$(PKG)_CONFIGURE_OPTIONS += --disable-smb
+$(PKG)_CONFIGURE_OPTIONS += --disable-smtp
 $(PKG)_CONFIGURE_OPTIONS += --disable-sspi
 $(PKG)_CONFIGURE_OPTIONS += --disable-telnet
-$(PKG)_CONFIGURE_OPTIONS += --disable-verbose
+$(PKG)_CONFIGURE_OPTIONS += --disable-tftp
+$(PKG)_CONFIGURE_OPTIONS += --disable-tls-srp
+
 $(PKG)_CONFIGURE_OPTIONS += --with-random="/dev/urandom"
 $(PKG)_CONFIGURE_OPTIONS += --without-cyassl
 $(PKG)_CONFIGURE_OPTIONS += --without-gnutls
 $(PKG)_CONFIGURE_OPTIONS += $(if $(FREETZ_LIB_libcurl_WITH_OPENSSL),--with-ssl="$(TARGET_TOOLCHAIN_STAGING_DIR)/usr",--without-ssl)
 $(PKG)_CONFIGURE_OPTIONS += $(if $(FREETZ_LIB_libcurl_WITH_POLARSSL),--with-polarssl="$(TARGET_TOOLCHAIN_STAGING_DIR)/usr",--without-polarssl)
+$(PKG)_CONFIGURE_OPTIONS += $(if $(FREETZ_LIB_libcurl_WITH_MBEDTLS),--with-mbedtls="$(TARGET_TOOLCHAIN_STAGING_DIR)/usr",--without-mbedtls)
 $(PKG)_CONFIGURE_OPTIONS += --without-ca-bundle
+$(PKG)_CONFIGURE_OPTIONS += --without-gssapi
 $(PKG)_CONFIGURE_OPTIONS += --without-libidn
+$(PKG)_CONFIGURE_OPTIONS += --without-libmetalink
+$(PKG)_CONFIGURE_OPTIONS += --without-librtmp
+$(PKG)_CONFIGURE_OPTIONS += --without-nghttp2
+$(PKG)_CONFIGURE_OPTIONS += $(if $(FREETZ_LIB_libcurl_WITH_SFTP),--with-libssh2="$(TARGET_TOOLCHAIN_STAGING_DIR)/usr",--without-libssh2)
 $(PKG)_CONFIGURE_OPTIONS += $(if $(FREETZ_LIB_libcurl_WITH_ZLIB),--with-zlib="$(TARGET_TOOLCHAIN_STAGING_DIR)/usr",--without-zlib)
 
 $(PKG_SOURCE_DOWNLOAD)

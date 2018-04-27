@@ -1,0 +1,115 @@
+commit 50ab4464302ac09252ece7a54488e2b99b7ecb8e
+Author: Eugene Rudoy <gene.devel@gmail.com>
+Date:   Wed Oct 18 23:33:52 2017 +0200
+
+    iproute/iprule: restore support for kernel versions missing RTA_TABLE routing attribute
+    
+    iproute/iprule applets fail to compile when compiled using kernel versions < 2.6.19
+    
+     iproute.c: In function 'print_route':
+     iproute.c:85:9: error: 'RTA_TABLE' undeclared (first use in this function)
+     iproute.c:85:9: note: each undeclared identifier is reported only once for each function it appears in
+     iproute.c: In function 'iproute_modify':
+     iproute.c:467:36: error: 'RTA_TABLE' undeclared (first use in this function)
+    
+    Fix it by partially #ifdef'ing the code added in b42107f21538e39d9a344376372f8261aed589b2
+    
+    Signed-off-by: Eugene Rudoy <gene.devel@gmail.com>
+    
+    ---
+    
+     v2: change the order of if/else-branches to reduce the number of #ifdef's
+         as suggested by Walter Harms
+
+diff --git networking/libiproute/iproute.c networking/libiproute/iproute.c
+index e8b26cb2f..9b3d9c3b8 100644
+--- networking/libiproute/iproute.c
++++ networking/libiproute/iproute.c
+@@ -15,6 +15,9 @@
+ #include "rt_names.h"
+ #include "utils.h"
+ 
++#include <linux/version.h>
++#define HAVE_RTA_TABLE (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19))
++
+ #ifndef RTAX_RTTVAR
+ #define RTAX_RTTVAR RTAX_HOPS
+ #endif
+@@ -82,9 +85,11 @@ static int FAST_FUNC print_route(const struct sockaddr_nl *who UNUSED_PARAM,
+ 	memset(tb, 0, sizeof(tb));
+ 	parse_rtattr(tb, RTA_MAX, RTM_RTA(r), len);
+ 
++#if HAVE_RTA_TABLE
+ 	if (tb[RTA_TABLE])
+ 		tid = *(uint32_t *)RTA_DATA(tb[RTA_TABLE]);
+ 	else
++#endif
+ 		tid = r->rtm_table;
+ 
+ 	if (r->rtm_family == AF_INET6)
+@@ -460,12 +465,13 @@ IF_FEATURE_IP_RULE(ARG_table,)
+ 			NEXT_ARG();
+ 			if (rtnl_rttable_a2n(&tid, *argv))
+ 				invarg_1_to_2(*argv, keyword_table);
+-			if (tid < 256)
+-				req.r.rtm_table = tid;
+-			else {
++#if HAVE_RTA_TABLE
++			if (tid > 255) {
+ 				req.r.rtm_table = RT_TABLE_UNSPEC;
+ 				addattr32(&req.n, sizeof(req), RTA_TABLE, tid);
+-			}
++			} else
++#endif
++				req.r.rtm_table = tid;
+ #endif
+ 		} else if (arg == ARG_dev || arg == ARG_oif) {
+ 			NEXT_ARG();
+diff --git networking/libiproute/iprule.c networking/libiproute/iprule.c
+index 9938b4793..772890982 100644
+--- networking/libiproute/iprule.c
++++ networking/libiproute/iprule.c
+@@ -25,6 +25,9 @@
+ #include "rt_names.h"
+ #include "utils.h"
+ 
++#include <linux/version.h>
++#define HAVE_RTA_TABLE (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,19))
++
+ /* If you add stuff here, update iprule_full_usage */
+ static const char keywords[] ALIGN1 =
+ 	"from\0""to\0""preference\0""order\0""priority\0"
+@@ -121,9 +124,12 @@ static int FAST_FUNC print_rule(const struct sockaddr_nl *who UNUSED_PARAM,
+ 		printf("iif %s ", (char*)RTA_DATA(tb[RTA_IIF]));
+ 	}
+ 
++#if HAVE_RTA_TABLE
+ 	if (tb[RTA_TABLE])
+ 		printf("lookup %s ", rtnl_rttable_n2a(*(uint32_t*)RTA_DATA(tb[RTA_TABLE])));
+-	else if (r->rtm_table)
++	else
++#endif
++	if (r->rtm_table)
+ 		printf("lookup %s ", rtnl_rttable_n2a(r->rtm_table));
+ 
+ 	if (tb[FRA_SUPPRESS_PREFIXLEN]) {
+@@ -267,12 +273,15 @@ static int iprule_modify(int cmd, char **argv)
+ 			NEXT_ARG();
+ 			if (rtnl_rttable_a2n(&tid, *argv))
+ 				invarg_1_to_2(*argv, "table ID");
+-			if (tid < 256)
+-				req.r.rtm_table = tid;
+-			else {
++
++#if HAVE_RTA_TABLE
++			if (tid > 255) {
+ 				req.r.rtm_table = RT_TABLE_UNSPEC;
+ 				addattr32(&req.n, sizeof(req), RTA_TABLE, tid);
+-			}
++			} else
++#endif
++				req.r.rtm_table = tid;
++
+ 			table_ok = 1;
+ 		} else if (key == ARG_suppress_prefixlength) {
+ 			int prefix_length;

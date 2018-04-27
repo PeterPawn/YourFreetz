@@ -13,27 +13,14 @@ default() {
 }
 
 depends_on() {
-	sed -r -i '/^config FREETZ_BUSYBOX_'"$1"'/,+5 {
-		/^[ \t]+depends on[ \t]/ {
-			# "depends on" already exists => append && at the end and move the line to the hold buffer
-			s,$, \&\&,
-			h;d
-		}
-		/^[ \t]+help$/ {
-			# eXchange pattern<-->hold buffers
-			x
-			# empty buffer => no "depends on" seen => add it
-			s,^$,\tdepends on,
-			# append new/additional condition at the end
-			s,$, '"$2"',
-			# get the help line back from the hold buffer
-			G
-		}
+	sed -r -i '/^config FREETZ_BUSYBOX_'"$1"'$/,/^[ \t]+help$/ {
+		/^[ \t]+help$/ i\
+	depends on '"$2"'
 	}' "$BBOUT"
 }
 
 select_() {
-	sed -r -i '/^config FREETZ_BUSYBOX_'"$1"'/,/^[ \t]+help$/ {
+	sed -r -i '/^config FREETZ_BUSYBOX_'"$1"'$/,/^[ \t]+help$/ {
 		/^[ \t]+help$/ i\
 	select '"$2"'
 	}' "$BBOUT"
@@ -71,7 +58,7 @@ done
 echo -n " replacing ..."
 sed -i -r \
 	-e "s,([ (!])(${feature_symbols})($|[ )]),\1FREETZ_BUSYBOX_\2\3,g" \
-	-e "/^[ \t#]*(config|default|depends|select|range)/{
+	-e "/^[ \t#]*(config|default|depends|select|range|if)/{
 		s,([ (!])(${nonfeature_symbols})($|[ )]),\1FREETZ_BUSYBOX_\2\3,g
 		s,([ (!])(${nonfeature_symbols})($|[ )]),\1FREETZ_BUSYBOX_\2\3,g
 	}" \
@@ -97,12 +84,13 @@ depends_on RFKILL "!FREETZ_KERNEL_VERSION_2_6_13"
 depends_on WGET "!FREETZ_PACKAGE_WGET \|\| FREETZ_WGET_ALWAYS_AVAILABLE"
 depends_on XZ "!FREETZ_PACKAGE_XZ"
 
-depends_on UBIATTACH "FREETZ_KERNEL_VERSION_2_6_28_MIN"
-depends_on UBIDETACH "FREETZ_KERNEL_VERSION_2_6_28_MIN"
-depends_on UBIMKVOL "FREETZ_KERNEL_VERSION_2_6_28_MIN"
-depends_on UBIRMVOL "FREETZ_KERNEL_VERSION_2_6_28_MIN"
-depends_on UBIRSVOL "FREETZ_KERNEL_VERSION_2_6_28_MIN"
-depends_on UBIUPDATEVOL "FREETZ_KERNEL_VERSION_2_6_28_MIN"
+depends_on UBIATTACH "FREETZ_KERNEL_VERSION_2_6_28_MIN \&\& !FREETZ_KERNEL_LAYOUT_GRX5"
+depends_on UBIDETACH "FREETZ_KERNEL_VERSION_2_6_28_MIN \&\& !FREETZ_KERNEL_LAYOUT_GRX5"
+depends_on UBIMKVOL "FREETZ_KERNEL_VERSION_2_6_28_MIN \&\& !FREETZ_KERNEL_LAYOUT_GRX5"
+depends_on UBIRENAME "FREETZ_KERNEL_VERSION_2_6_28_MIN \&\& !FREETZ_KERNEL_LAYOUT_GRX5"
+depends_on UBIRMVOL "FREETZ_KERNEL_VERSION_2_6_28_MIN \&\& !FREETZ_KERNEL_LAYOUT_GRX5"
+depends_on UBIRSVOL "FREETZ_KERNEL_VERSION_2_6_28_MIN \&\& !FREETZ_KERNEL_LAYOUT_GRX5"
+depends_on UBIUPDATEVOL "FREETZ_KERNEL_VERSION_2_6_28_MIN \&\& !FREETZ_KERNEL_LAYOUT_GRX5"
 
 # Freetz mandatory options BUSYBOX_FEATURE_PS_LONG & BUSYBOX_FEATURE_PS_WIDE both depend on !DESKTOP.
 # Make DESKTOP depend on some non-existing symbol to prevent the user from (accidentally) selecting it
@@ -112,9 +100,39 @@ depends_on DESKTOP "FREETZ_DISABLE_OPTION_BY_MAKING_IT_DEPEND_ON_NONEXISTING_SYM
 # from-file-to-file mode is supported since 2.6.33, thus disabled
 depends_on FEATURE_USE_SENDFILE "FREETZ_DISABLE_OPTION_BY_MAKING_IT_DEPEND_ON_NONEXISTING_SYMBOL"
 
-# SSL helper not available, thus disabled
-depends_on FEATURE_WGET_SSL_HELPER "FREETZ_DISABLE_OPTION_BY_MAKING_IT_DEPEND_ON_NONEXISTING_SYMBOL"
-
+# FEATURE_WGET_OPENSSL requires openssl binary
 select_ FEATURE_WGET_OPENSSL "FREETZ_PACKAGE_OPENSSL"
+
+# libbusybox is not supported by Freetz
+depends_on BUILD_LIBBUSYBOX "FREETZ_DISABLE_OPTION_BY_MAKING_IT_DEPEND_ON_NONEXISTING_SYMBOL"
+
+# Freetz is not Fedora
+depends_on FEDORA_COMPAT "FREETZ_DISABLE_OPTION_BY_MAKING_IT_DEPEND_ON_NONEXISTING_SYMBOL"
+
+# Ext*FS
+depends_on MKE2FS "!FREETZ_PACKAGE_E2FSPROGS_E2MAKING"
+depends_on MKFS_EXT2 "!FREETZ_PACKAGE_E2FSPROGS_E2MAKING"
+
+# mdev requires kernel >= 2.6.27 since busybox 1.27.x, see the corresponding note on https://busybox.net/
+# and this thread http://lists.busybox.net/pipermail/busybox/2017-March/085362.html for more details
+# alternatively we might apply this patch http://busybox.net/0001-mdev-create-devices-from-sys-dev.patch
+depends_on MDEV "FREETZ_KERNEL_VERSION_2_6_28_MIN"
+
+# setns syscall is available since kernel 3.0 (s. http://man7.org/linux/man-pages/man2/setns.2.html#VERSIONS)
+# and since uclibc-ng 1.0.1 (s. https://github.com/wbx-github/uclibc-ng/commit/5d5c77daae197b00f89ad1517ffb5a7a01a78cff)
+depends_on NSENTER "FREETZ_KERNEL_VERSION_3_10_MIN \&\& FREETZ_AVM_UCLIBC_1_0_14"
+
+# fallocate applet requires posix_fallocate which is available (in Freetz) since uClibc-0.9.33
+depends_on FALLOCATE FREETZ_TARGET_UCLIBC_0_9_33
+
+# ensure only SH_IS_ASH could be selected
+depends_on SH_IS_HUSH "FREETZ_DISABLE_OPTION_BY_MAKING_IT_DEPEND_ON_NONEXISTING_SYMBOL"
+#depends_on SH_IS_NONE "FREETZ_DISABLE_OPTION_BY_MAKING_IT_DEPEND_ON_NONEXISTING_SYMBOL"
+
+depends_on FEATURE_PREFER_APPLETS "FREETZ_BUSYBOX__NOEXEC_NOFORK_OPTIMIZATIONS"
+depends_on FEATURE_SH_NOFORK "FREETZ_BUSYBOX__NOEXEC_NOFORK_OPTIMIZATIONS"
+depends_on FEATURE_SH_STANDALONE "FREETZ_BUSYBOX__NOEXEC_NOFORK_OPTIMIZATIONS"
+
+depends_on FEATURE_USE_BSS_TAIL "FREETZ_DISABLE_OPTION_BY_MAKING_IT_DEPEND_ON_NONEXISTING_SYMBOL"
 
 echo " done."

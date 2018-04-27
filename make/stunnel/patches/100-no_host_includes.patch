@@ -1,6 +1,6 @@
 --- src/Makefile.in
 +++ src/Makefile.in
-@@ -374,7 +374,7 @@
+@@ -381,7 +381,7 @@
  # Red Hat "by design" bug #82369
  
  # Additional preprocesor definitions
@@ -8,4 +8,4 @@
 +stunnel_CPPFLAGS =                         -I$(SSLDIR)/include \
  	-DLIBDIR='"$(pkglibdir)"' -DCONFDIR='"$(sysconfdir)/stunnel"'
  
- # SSL library
+ # TLS library

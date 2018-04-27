@@ -11,11 +11,15 @@ $(PKG)_BUILD_SUBDIR:=source$(if $(FREETZ_SAMBA_VERSION_3_0),,3)
 
 $(PKG)_PATCH_POST_CMDS += $(SED) -r -i -e 's,(backtrace_symbols),\1_support_in_freetz,g' $($(PKG)_BUILD_SUBDIR)/configure;
 
+ifeq ($(strip $(FREETZ_SAMBA_VERSION_3_6)),y)
+# avoid regenerating dcerpc.idl dependent files, these've been regenarated using source3/autogen.sh and saved as 030-autogen.sh-regenerated-files.patch
+$(PKG)_PATCH_POST_CMDS += touch -t 201501010000.00 librpc/idl/dcerpc.idl source3/librpc/gen_ndr/dcerpc.h source3/librpc/gen_ndr/ndr_dcerpc.h source3/librpc/gen_ndr/ndr_dcerpc.c source3/librpc/gen_ndr/py_dcerpc.c;
+endif
+
 $(PKG)_REBUILD_SUBOPTS += FREETZ_SAMBA_VERSION_3_0
 $(PKG)_REBUILD_SUBOPTS += FREETZ_SAMBA_VERSION_3_6
 $(PKG)_REBUILD_SUBOPTS += FREETZ_PACKAGE_SAMBA_MAX_DEBUG_LEVEL
 $(PKG)_REBUILD_SUBOPTS += FREETZ_TARGET_IPV6_SUPPORT
-$(PKG)_REBUILD_SUBOPTS += FREETZ_TARGET_LFS
 
 $(PKG)_BINARY:=samba_multicall
 $(PKG)_BINARY_BUILD_DIR:=$($(PKG)_DIR)/$($(PKG)_BUILD_SUBDIR)/bin/$($(PKG)_BINARY)
@@ -68,7 +72,7 @@ $(PKG_CONFIGURED_CONFIGURE)
 
 $($(PKG)_BINARY_BUILD_DIR) $($(PKG)_CLIENT_BINARIES_BUILD_DIR): $($(PKG)_DIR)/.configured
 	for target in $(if $(FREETZ_SAMBA_VERSION_3_0),headers) all; do \
-	$(SUBMAKE) -C $(SAMBA_DIR)/$(SAMBA_BUILD_SUBDIR) \
+	$(SUBMAKE1) -C $(SAMBA_DIR)/$(SAMBA_BUILD_SUBDIR) \
 		$(SAMBA_MAKE_FLAGS) \
 		$$target; \
 	done

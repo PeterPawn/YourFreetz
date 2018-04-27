@@ -11,14 +11,14 @@ KERNEL_BUILD_DIR:=$(KERNEL_DIR)
 KERNEL_BUILD_ROOT_DIR:=$(KERNEL_BUILD_DIR)/linux-$(KERNEL_VERSION)
 
 KERNEL_IMAGE:=vmlinux.eva_pad
-KERNEL_IMAGE_BUILD_SUBDIR:=$(if $(FREETZ_KERNEL_VERSION_3_10_MIN),/arch/mips/boot)
+KERNEL_IMAGE_BUILD_SUBDIR:=$(if $(FREETZ_KERNEL_VERSION_3_10_MIN),/arch/$(TARGET_ARCH)/boot)
 KERNEL_TARGET_BINARY:=kernel-$(KERNEL_ID).bin
 KERNEL_CONFIG_FILE:=$(KERNEL_MAKE_DIR)/configs/freetz/config-$(KERNEL_ID)
 
 KERNEL_COMMON_MAKE_OPTIONS := -C $(KERNEL_BUILD_ROOT_DIR)
 KERNEL_COMMON_MAKE_OPTIONS += CROSS_COMPILE="$(KERNEL_CROSS)"
 KERNEL_COMMON_MAKE_OPTIONS += KERNEL_MAKE_PATH="$(KERNEL_MAKE_PATH):$(PATH)"
-KERNEL_COMMON_MAKE_OPTIONS += ARCH="$(KERNEL_ARCH)"
+KERNEL_COMMON_MAKE_OPTIONS += ARCH="$(TARGET_ARCH)"
 # TODO: KERNEL_LAYOUT is referenced just once in kernel's makefiles.
 # It causes additional fusiv-sources to be added to the list of sources
 # to compile. Compiling these sources however fails, that's the reason
@@ -162,13 +162,35 @@ $(TARGET_TOOLCHAIN_KERNEL_VERSION_HEADER): $(TOPDIR)/.config $(KERNEL_HEADERS_DE
 	@$(call COPY_KERNEL_HEADERS,$(KERNEL_HEADERS_DEVEL_DIR),$(TARGET_TOOLCHAIN_STAGING_DIR)/usr)
 	@touch $@
 
-$(KERNEL_BUILD_ROOT_DIR)$(KERNEL_IMAGE_BUILD_SUBDIR)/$(KERNEL_IMAGE): $(KERNEL_DIR)/.prepared | $(TOOLS_DIR)/lzma $(TOOLS_DIR)/lzma2eva
+ifeq ($(strip $(FREETZ_KERNEL_VERSION_3_10_MIN)),y)
+KERNEL_BUILD_DEPENDENCIES += $(AVM_KERNEL_CONFIG_DIR)/avm_kernel_config_area.S
+
+$(AVM_KERNEL_CONFIG_DIR): | $(KERNEL_DIR)/.unpacked
+	@mkdir -p $@
+
+$(AVM_KERNEL_CONFIG_DIR)/avm_kernel_config_area.$(DL_SOURCE_ID).bin: $(DL_FW_DIR)/$(DL_SOURCE) | $(KERNEL_DIR)/.unpacked $(AVM_KERNEL_CONFIG_DIR) tools
+	@$(TOOLS_DIR)/avm_kernel_config.extract.sh -s $(FREETZ_AVM_KERNEL_CONFIG_AREA_SIZE) "$<" >"$@" || { $(RM) "$@"; exit 1; }
+
+$(AVM_KERNEL_CONFIG_DIR)/avm_kernel_config_area.$(DL_SOURCE_ID).S: $(AVM_KERNEL_CONFIG_DIR)/avm_kernel_config_area.$(DL_SOURCE_ID).bin | $(KERNEL_DIR)/.unpacked $(AVM_KERNEL_CONFIG_DIR) tools
+	@$(TOOLS_DIR)/avm_kernel_config.bin2asm "$<" >"$@" || { $(RM) "$@"; exit 1; }
+
+# Force kernel rebuild if avm_kernel_config_area.S differs from avm_kernel_config_area.$(DL_SOURCE_ID).S
+# To reduce maintenance effort we often use the same opensrc package for different boxes.
+# avm_kernel_config_area is however box/firmware-release specific, i.e. the kernel must be rebuilt
+# if BOX_ID changes even though the opensrc package might still be the same.
+$(shell diff -q "$(AVM_KERNEL_CONFIG_DIR)/avm_kernel_config_area.S" "$(AVM_KERNEL_CONFIG_DIR)/avm_kernel_config_area.$(DL_SOURCE_ID).S" >/dev/null 2>&1 || $(RM) "$(AVM_KERNEL_CONFIG_DIR)/avm_kernel_config_area.S" >/dev/null 2>&1)
+
+$(AVM_KERNEL_CONFIG_DIR)/avm_kernel_config_area.S: $(AVM_KERNEL_CONFIG_DIR)/avm_kernel_config_area.$(DL_SOURCE_ID).S
+	@cat "$<" >"$@"
+
+.PHONY: avm_kernel_config
+avm_kernel_config: $(AVM_KERNEL_CONFIG_DIR)/avm_kernel_config_area.S
+endif
+
+$(KERNEL_BUILD_ROOT_DIR)$(KERNEL_IMAGE_BUILD_SUBDIR)/$(KERNEL_IMAGE): $(KERNEL_DIR)/.prepared $(KERNEL_BUILD_DEPENDENCIES) | $(TOOLS_DIR)/lzma $(TOOLS_DIR)/lzma2eva
 	$(call _ECHO, kernel image... )
 	$(SUBMAKE) $(KERNEL_COMMON_MAKE_OPTIONS) $(KERNEL_IMAGE)
 	touch -c $@
-
-kernel-force:
-	$(SUBMAKE) $(KERNEL_COMMON_MAKE_OPTIONS) $(KERNEL_IMAGE)
 
 $(KERNEL_TARGET_DIR)/$(KERNEL_TARGET_BINARY): $(KERNEL_BUILD_ROOT_DIR)$(KERNEL_IMAGE_BUILD_SUBDIR)/$(KERNEL_IMAGE) | $(KERNEL_TARGET_DIR)
 	cp $(KERNEL_BUILD_ROOT_DIR)$(KERNEL_IMAGE_BUILD_SUBDIR)/$(KERNEL_IMAGE) $(KERNEL_TARGET_DIR)/$(KERNEL_TARGET_BINARY)

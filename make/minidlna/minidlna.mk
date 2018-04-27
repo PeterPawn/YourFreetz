@@ -1,9 +1,11 @@
-$(call PKG_INIT_BIN, 1.1.5)
+$(call PKG_INIT_BIN, 1.2.1)
 $(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.gz
-$(PKG)_SOURCE_MD5:=1970e553a1eb8a3e7e302e2ce292cbc4
+$(PKG)_SOURCE_MD5:=a968d3d84971322471cabda3669cc0f8
 $(PKG)_SITE:=@SF/minidlna
 
 $(PKG)_CONDITIONAL_PATCHES+=$(FREETZ_PACKAGE_MINIDLNA_LANG)
+
+$(PKG)_PATCH_POST_CMDS += $(call PKG_ADD_EXTRA_FLAGS,(C|LD)FLAGS|LIBS)
 
 $(PKG)_BINARY := $($(PKG)_DIR)/minidlnad
 $(PKG)_TARGET_BINARY := $($(PKG)_DEST_DIR)/usr/sbin/minidlna
@@ -31,6 +33,9 @@ $(PKG)_CONFIGURE_OPTIONS += --with-db-path="/tmp/minidlna"
 $(PKG)_CONFIGURE_OPTIONS += --with-os-name="FRITZ!Box"
 $(PKG)_CONFIGURE_OPTIONS += --with-os-version=""
 $(PKG)_CONFIGURE_OPTIONS += --with-os-url="http://freetz.org"
+
+$(PKG)_CONFIGURE_PRE_CMDS += $(call PKG_MAKE_AC_VARIABLES_PACKAGE_SPECIFIC,lib_avahi_client_avahi_threaded_poll_new)
+$(PKG)_CONFIGURE_ENV += minidlna_lib_avahi_client_avahi_threaded_poll_new=no
 
 ifeq ($(strip $(FREETZ_PACKAGE_MINIDLNA_STATIC)),y)
 # sqlite

@@ -1,6 +1,6 @@
-$(call PKG_INIT_BIN, 5.31)
+$(call PKG_INIT_BIN, 5.44)
 $(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.gz
-$(PKG)_SOURCE_SHA256:=a746b71ab3dc6c23eacb0daf7342467870e43ac933430905eb1b1d050bbae0b7
+$(PKG)_SOURCE_SHA256:=990a325dbb47d77d88772dd02fbbd27d91b1fea3ece76c9ff4461eca93f12299
 $(PKG)_SITE:=https://www.stunnel.org/downloads/archive/5.x
 
 $(PKG)_STARTLEVEL=81
@@ -8,14 +8,20 @@ $(PKG)_STARTLEVEL=81
 $(PKG)_BINARY:=$($(PKG)_DIR)/src/$(pkg)
 $(PKG)_TARGET_BINARY:=$($(PKG)_DEST_DIR)/usr/sbin/$(pkg)
 
-$(PKG)_DEPENDS_ON += openssl zlib
+$(PKG)_DEPENDS_ON += openssl
 
+ifeq ($(strip $(FREETZ_PACKAGE_STUNNEL_BOXCERT)),y)
+$(PKG)_CONDITIONAL_PATCHES+=boxcert
+$(PKG)_DEPENDS_ON += privatekeypassword
+$(PKG)_EXTRA_LDFLAGS += -lprivatekeypassword
+endif
+
+$(PKG)_REBUILD_SUBOPTS += FREETZ_PACKAGE_STUNNEL_BOXCERT
 $(PKG)_REBUILD_SUBOPTS += FREETZ_OPENSSL_SHLIB_VERSION
 $(PKG)_REBUILD_SUBOPTS += FREETZ_PACKAGE_STUNNEL_STATIC
 $(PKG)_REBUILD_SUBOPTS += FREETZ_TARGET_IPV6_SUPPORT
 
-# add EXTRA_CFLAGS, EXTRA_LDFLAGS variables to all Makefile.in's
-$(PKG)_CONFIGURE_PRE_CMDS += $(SED) -i -r -e 's,^((C|LD)FLAGS)[ \t]*=[ \t]*@\1@,& $$$$(EXTRA_\1),' `find . -name Makefile.in`;
+$(PKG)_PATCH_POST_CMDS += $(call PKG_ADD_EXTRA_FLAGS,(C|LD)FLAGS|LIBS)
 
 # reduce binary size by setting appropriate CFLAGS/LDFLAGS
 $(PKG)_EXTRA_CFLAGS  += -ffunction-sections -fdata-sections
@@ -23,11 +29,14 @@ $(PKG)_EXTRA_LDFLAGS += -Wl,--gc-sections
 
 ifeq ($(strip $(FREETZ_PACKAGE_STUNNEL_STATIC)),y)
 $(PKG)_EXTRA_LDFLAGS += -all-static
+$(PKG)_STATIC_LIBS += $(OPENSSL_LIBCRYPTO_EXTRA_LIBS)
 endif
 
 $(PKG)_CONFIGURE_ENV += ac_cv_file__dev_ptmx=no
 $(PKG)_CONFIGURE_ENV += ac_cv_file__dev_ptc=no
 $(PKG)_CONFIGURE_ENV += ac_cv_file__dev_urandom=yes
+
+$(PKG)_CONFIGURE_PRE_CMDS += $(call PKG_MAKE_AC_VARIABLES_PACKAGE_SPECIFIC,func_FIPS_mode_set)
 
 $(PKG)_CONFIGURE_OPTIONS += --disable-libwrap
 $(PKG)_CONFIGURE_OPTIONS += --disable-systemd
@@ -42,7 +51,8 @@ $(PKG_CONFIGURED_CONFIGURE)
 $($(PKG)_BINARY): $($(PKG)_DIR)/.configured
 	$(SUBMAKE) -C $(STUNNEL_DIR) \
 		EXTRA_CFLAGS="$(STUNNEL_EXTRA_CFLAGS)" \
-		EXTRA_LDFLAGS="$(STUNNEL_EXTRA_LDFLAGS)"
+		EXTRA_LDFLAGS="$(STUNNEL_EXTRA_LDFLAGS)" \
+		EXTRA_LIBS="$(STUNNEL_STATIC_LIBS)"
 
 $($(PKG)_TARGET_BINARY): $($(PKG)_BINARY)
 	$(INSTALL_BINARY_STRIP)

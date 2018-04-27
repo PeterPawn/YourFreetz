@@ -1,20 +1,25 @@
-$(call PKG_INIT_LIB, 3.2)
+$(call PKG_INIT_LIB, 3.4)
 $(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.gz
-$(PKG)_SOURCE_MD5:=afb15b4764ebf1b4e6d06c62bd4d29e4
+$(PKG)_SOURCE_SHA256:=ae7a42df026550b85daca8389b6a60ba6313b0567f374392e54918588a411e94
 $(PKG)_SITE:=@GNU/nettle,http://www.lysator.liu.se/~nisse/archive
 
 $(PKG)_LIBNAMES         := nettle hogweed
-$(PKG)_LIBVERSIONS      := 6.2    4.2
+$(PKG)_LIBVERSIONS      := 6.4    4.4
 $(PKG)_LIBNAMES_LONG    := $(join $($(PKG)_LIBNAMES:%=lib%.so.),$($(PKG)_LIBVERSIONS))
 $(PKG)_LIBS_BUILD_DIR   := $($(PKG)_LIBNAMES:%=$($(PKG)_DIR)/lib%.so)
 $(PKG)_LIBS_STAGING_DIR := $($(PKG)_LIBNAMES_LONG:%=$(TARGET_TOOLCHAIN_STAGING_DIR)/usr/lib/%)
 $(PKG)_LIBS_TARGET_DIR  := $($(PKG)_LIBNAMES_LONG:%=$($(PKG)_TARGET_DIR)/%)
+
+$(PKG)_CONFIGURE_PRE_CMDS += $(call PKG_MAKE_AC_VARIABLES_PACKAGE_SPECIFIC,link_ifunc,,nettle)
+$(PKG)_CONFIGURE_PRE_CMDS += $(call PKG_MAKE_AC_VARIABLES_PACKAGE_SPECIFIC,lib_gmp___gmpz_powm_sec)
 
 $(PKG)_DEPENDS_ON += gmp
 
 $(PKG)_CONFIGURE_OPTIONS += --disable-assembler
 $(PKG)_CONFIGURE_OPTIONS += --disable-documentation
 $(PKG)_CONFIGURE_OPTIONS += --disable-openssl
+$(PKG)_CONFIGURE_OPTIONS += --disable-mini-gmp
+$(PKG)_CONFIGURE_OPTIONS += --enable-public-key
 
 $(PKG_SOURCE_DOWNLOAD)
 $(PKG_UNPACKED)

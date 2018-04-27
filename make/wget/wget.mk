@@ -1,6 +1,6 @@
-$(call PKG_INIT_BIN, 1.17.1)
-$(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.xz
-$(PKG)_SOURCE_MD5:=b0d58ef4963690e71effba24c105ed52
+$(call PKG_INIT_BIN, 1.19.4)
+$(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.lz
+$(PKG)_SOURCE_SHA256:=2fc0ffb965a8dc8f1e4a89cbe834c0ae7b9c22f559ebafc84c7874ad1866559a
 $(PKG)_SITE:=@GNU/$(pkg)
 
 $(PKG)_BINARY:=$($(PKG)_DIR)/src/wget
@@ -12,9 +12,8 @@ $(PKG)_PATCH_POST_CMDS += find $(abspath $($(PKG)_DIR)) \( -name *.h -o -name *.
 
 $(PKG)_PATCH_POST_CMDS += $(call PKG_MAKE_AC_VARIABLES_PACKAGE_SPECIFIC,lib_z_compress)
 
-# add EXTRA_(C|LD)FLAGS
-$(PKG)_PATCH_POST_CMDS += find $(abspath $($(PKG)_DIR)) -name Makefile.in -type f \
-	-exec $(SED) -i -r -e 's,^(C|LD)FLAGS[ \t]*=[ \t]*@\1FLAGS@,& $$$$(EXTRA_\1FLAGS),' \{\} \+;
+$(PKG)_PATCH_POST_CMDS += $(call PKG_ADD_EXTRA_FLAGS,(C|LD)FLAGS|LIBS)
+
 $(PKG)_EXTRA_CFLAGS  += -ffunction-sections -fdata-sections
 $(PKG)_EXTRA_LDFLAGS += -Wl,--gc-sections
 
@@ -26,6 +25,9 @@ $(PKG)_DEPENDS_ON += openssl
 $(PKG)_CONFIGURE_OPTIONS += --with-ssl=openssl
 $(PKG)_CONFIGURE_OPTIONS += --with-libssl-prefix="$(TARGET_TOOLCHAIN_STAGING_DIR)/usr"
 $(PKG)_CONFIGURE_OPTIONS += --without-libgnutls-prefix
+ifeq ($(strip $(FREETZ_PACKAGE_WGET_STATIC)),y)
+$(PKG)_STATIC_LIBS := $(OPENSSL_LIBCRYPTO_EXTRA_LIBS)
+endif
 endif
 
 ifeq ($(strip $(FREETZ_PACKAGE_WGET_GNUTLS)),y)
@@ -68,7 +70,7 @@ $($(PKG)_BINARY): $($(PKG)_DIR)/.configured
 	$(SUBMAKE) -C $(WGET_DIR) \
 		EXTRA_CFLAGS="$(WGET_EXTRA_CFLAGS)" \
 		EXTRA_LDFLAGS="$(WGET_EXTRA_LDFLAGS)" \
-		STATIC_LIBS="$(WGET_STATIC_LIBS)"
+		EXTRA_LIBS="$(WGET_STATIC_LIBS)"
 
 $($(PKG)_TARGET_BINARY): $($(PKG)_BINARY)
 	$(INSTALL_BINARY_STRIP)

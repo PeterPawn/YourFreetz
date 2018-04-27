@@ -1,11 +1,8 @@
-$(call PKG_INIT_BIN, 2016.2.22)
-$(PKG)_LIB_VERSION:=87.0.0
-$(PKG)_TARBALL_DIRNAME:=$(pkg)-3g_ntfsprogs-$($(PKG)_VERSION)
-$(PKG)_SOURCE:=$($(PKG)_TARBALL_DIRNAME).tgz
-$(PKG)_SOURCE_SHA256:=d7b72c05e4b3493e6095be789a760c9f5f2b141812d5b885f3190c98802f1ea0
+$(call PKG_INIT_BIN, 2017.3.23)
+$(PKG)_LIB_VERSION:=88.0.0
+$(PKG)_SOURCE:=ntfs-3g_ntfsprogs-$($(PKG)_VERSION).tgz
+$(PKG)_SOURCE_SHA256:=3e5a021d7b761261836dcb305370af299793eedbded731df3d6943802e1262d5
 $(PKG)_SITE:=http://tuxera.com/opensource
-
-$(PKG)_DIR:=$($(PKG)_SOURCE_DIR)/$($(PKG)_TARBALL_DIRNAME)
 
 $(PKG)_LIB_BINARY:=$($(PKG)_DIR)/libntfs-3g/.libs/libntfs-3g.so.$($(PKG)_LIB_VERSION)
 $(PKG)_LIB_STAGING_BINARY:=$(TARGET_TOOLCHAIN_STAGING_DIR)/usr/lib/libntfs-3g.so.$($(PKG)_LIB_VERSION)
@@ -35,7 +32,7 @@ $(PKG)_CONFIGURE_OPTIONS += --without-uuid
 $(PKG)_CONFIGURE_PRE_CMDS += $(SED) -i -r -e 's,^(C)FLAGS[ \t]*=[ \t]*@\1FLAGS@,& $$$$(EXTRA_\1FLAGS),' $(abspath $($(PKG)_DIR))/{src,ntfsprogs,libfuse-lite}/Makefile.in;
 $(PKG)_CONFIGURE_PRE_CMDS += $(SED) -i -r -e 's,^(LD)FLAGS[ \t]*=[ \t]*@\1FLAGS@,& $$$$(EXTRA_\1FLAGS),' $(abspath $($(PKG)_DIR))/{src,ntfsprogs}/Makefile.in;
 
-$(PKG)_MAKE_FLAGS += ARCH="$(KERNEL_ARCH)"
+$(PKG)_MAKE_FLAGS += ARCH="$(TARGET_ARCH)"
 $(PKG)_MAKE_FLAGS += CROSS_COMPILE="$(TARGET_CROSS)"
 $(PKG)_MAKE_FLAGS += EXTRA_CFLAGS="-ffunction-sections -fdata-sections"
 $(PKG)_MAKE_FLAGS += EXTRA_LDFLAGS="-Wl,--gc-sections"

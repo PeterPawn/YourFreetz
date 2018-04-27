@@ -1,12 +1,5 @@
-config FREETZ_WGET
-	bool
-	select FREETZ_BUSYBOX_WGET if !FREETZ_PACKAGE_WGET || FREETZ_WGET_ALWAYS_AVAILABLE
-	select FREETZ_BUSYBOX_FEATURE_WGET_AUTHENTICATION if FREETZ_BUSYBOX_WGET
-	select FREETZ_BUSYBOX_FEATURE_WGET_STATUSBAR if FREETZ_BUSYBOX_WGET
-	select FREETZ_BUSYBOX_FEATURE_WGET_TIMEOUT if FREETZ_BUSYBOX_WGET
-
 config FREETZ_PACKAGE_WGET
-	bool "GNU Wget 1.17.1 (binary only)"
+	bool "GNU Wget 1.19.4 (binary only)"
 	default n
 	help
 		GNU Wget is a free software package for retrieving files using

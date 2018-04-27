@@ -1,6 +1,6 @@
 GCC_VERSION:=$(TARGET_TOOLCHAIN_GCC_VERSION)
 GCC_MAJOR_VERSION:=$(TARGET_TOOLCHAIN_GCC_MAJOR_VERSION)
-GCC_SOURCE:=gcc-$(GCC_VERSION).tar.bz2
+GCC_SOURCE:=gcc-$(GCC_VERSION).tar.$(if $(FREETZ_TARGET_GCC_5),xz,bz2)
 GCC_SITE:=$(if $(FREETZ_TARGET_GCC_SNAPSHOT),ftp://gcc.gnu.org/pub/gcc/snapshots/$(GCC_VERSION),@GNU/gcc/gcc-$(GCC_VERSION))
 GCC_DIR:=$(TARGET_TOOLCHAIN_DIR)/gcc-$(GCC_VERSION)
 GCC_MAKE_DIR:=$(TOOLCHAIN_DIR)/make/target/gcc
@@ -8,7 +8,8 @@ GCC_MAKE_DIR:=$(TOOLCHAIN_DIR)/make/target/gcc
 GCC_MD5_4.6.4 := b407a3d1480c11667f293bfb1f17d1a4
 GCC_MD5_4.7.4 := 4c696da46297de6ae77a82797d2abe28
 GCC_MD5_4.8.5 := 80d2c2982a3392bb0b89673ff136e223
-GCC_MD5_4.9.3 := 6f831b4d251872736e8e9cc09746f327
+GCC_MD5_4.9.4 := 87c24a4090c1577ba817ec6882602491
+GCC_MD5_5.5.0 := 0f70424213b4a1113c04ba66ddda0c1f
 GCC_MD5       := $(GCC_MD5_$(GCC_VERSION))
 
 GCC_INITIAL_PREREQ=
@@ -33,12 +34,13 @@ GCC_COMMON_CONFIGURE_OPTIONS += $(if $(FREETZ_AVM_UCLIBC_NPTL_ENABLED),--enable-
 GCC_COMMON_CONFIGURE_OPTIONS += --disable-fixed-point
 GCC_COMMON_CONFIGURE_OPTIONS += $(GCC_COMMON_CONFIGURE_OPTIONS_ARCH_ABI)
 GCC_COMMON_CONFIGURE_OPTIONS += --disable-nls
-GCC_COMMON_CONFIGURE_OPTIONS += $(DISABLE_LARGEFILE)
 GCC_COMMON_CONFIGURE_OPTIONS += $(QUIET)
 
 ifneq ($(strip $(FREETZ_TARGET_TOOLCHAIN_AVM_COMPATIBLE)),y)
+ifeq ($(strip $(FREETZ_TARGET_ARCH_MIPS)),y)
 # enable non-PIC for mips* targets
 GCC_COMMON_CONFIGURE_OPTIONS += --with-mips-plt
+endif
 endif
 
 ifndef TARGET_TOOLCHAIN_NO_MPFR
@@ -46,9 +48,9 @@ GCC_COMMON_CONFIGURE_OPTIONS += --disable-decimal-float
 
 GCC_INITIAL_PREREQ += $(GMP_HOST_BINARY)   $(MPFR_HOST_BINARY)   $(MPC_HOST_BINARY)
 GCC_TARGET_PREREQ  += $(GMP_TARGET_BINARY) $(MPFR_TARGET_BINARY) $(MPC_TARGET_BINARY)
-GCC_WITH_HOST_GMP   = --with-gmp=$(GMP_HOST_DIR)
-GCC_WITH_HOST_MPFR  = --with-mpfr=$(MPFR_HOST_DIR)
-GCC_WITH_HOST_MPC   = --with-mpc=$(MPC_HOST_DIR)
+GCC_WITH_HOST_GMP   = --with-gmp=$(GMP_HOST_DESTDIR)
+GCC_WITH_HOST_MPFR  = --with-mpfr=$(MPFR_HOST_DESTDIR)
+GCC_WITH_HOST_MPC   = --with-mpc=$(MPC_HOST_DESTDIR)
 endif
 
 GCC_EXTRA_MAKE_OPTIONS := MAKEINFO=true
@@ -97,7 +99,7 @@ $(GCC_DIR)/.unpacked: $(DL_DIR)/$(GCC_SOURCE) | $(TARGET_TOOLCHAIN_DIR) $(UNPACK
 ##############################################################################
 GCC_BUILD_DIR1:=$(TARGET_TOOLCHAIN_DIR)/gcc-$(GCC_VERSION)-initial
 
-$(GCC_BUILD_DIR1)/.configured: $(GCC_DIR)/.unpacked $(GCC_INITIAL_PREREQ) | target-toolchain-kernel-headers
+$(GCC_BUILD_DIR1)/.configured: $(GCC_DIR)/.unpacked $(GCC_INITIAL_PREREQ) | binutils target-toolchain-kernel-headers
 	mkdir -p $(GCC_BUILD_DIR1)
 	(cd $(GCC_BUILD_DIR1); $(RM) config.cache; \
 		PATH=$(TARGET_PATH) \
@@ -109,6 +111,8 @@ $(GCC_BUILD_DIR1)/.configured: $(GCC_DIR)/.unpacked $(GCC_INITIAL_PREREQ) | targ
 		$(GCC_DIR)/configure \
 		--prefix=$(TARGET_TOOLCHAIN_PREFIX) \
 		--with-sysroot=$(TARGET_TOOLCHAIN_DEVEL_SYSROOT) \
+		--with-newlib=yes \
+		--with-headers=no \
 		--build=$(GNU_HOST_NAME) \
 		--host=$(GNU_HOST_NAME) \
 		--target=$(REAL_GNU_TARGET_NAME) \
@@ -139,15 +143,16 @@ $(GCC_BUILD_DIR1)/.installed: $(GCC_BUILD_DIR1)/.compiled
 	$(call REMOVE_DOC_NLS_DIRS,$(TARGET_TOOLCHAIN_STAGING_DIR))
 	touch $@
 
-gcc_initial: uclibc-configured binutils $(GCC_BUILD_DIR1)/.installed
+gcc_initial-configured: $(GCC_BUILD_DIR1)/.configured
+
+gcc_initial: binutils $(GCC_BUILD_DIR1)/.installed
 
 gcc_initial-uninstall: gcc-uninstall
 
 gcc_initial-clean: gcc_initial-uninstall
 	$(RM) -r $(GCC_BUILD_DIR1)
 
-gcc_initial-dirclean: gcc_initial-clean gcc-dirclean gcc_target-dirclean
-	$(RM) -r $(GCC_DIR)
+gcc_initial-dirclean: gcc_initial-clean gcc-dirclean
 
 ##############################################################################
 #
@@ -157,7 +162,7 @@ gcc_initial-dirclean: gcc_initial-clean gcc-dirclean gcc_target-dirclean
 ##############################################################################
 GCC_BUILD_DIR2:=$(TARGET_TOOLCHAIN_DIR)/gcc-$(GCC_VERSION)-final
 
-$(GCC_BUILD_DIR2)/.configured: $(GCC_DIR)/.unpacked $(GCC_STAGING_PREREQ)
+$(GCC_BUILD_DIR2)/.configured: $(GCC_DIR)/.unpacked $(GCC_STAGING_PREREQ) | binutils
 	mkdir -p $(GCC_BUILD_DIR2)
 	# Important! Required for limits.h to be fixed.
 	ln -sf ../include $(TARGET_TOOLCHAIN_STAGING_DIR)/usr/$(REAL_GNU_TARGET_NAME)/sys-include
@@ -204,6 +209,8 @@ $(GCC_BUILD_DIR2)/.installed: $(GCC_BUILD_DIR2)/.compiled
 	$(call CREATE_TARGET_NAME_SYMLINKS,$(TARGET_TOOLCHAIN_STAGING_DIR)/usr,$(GCC_BINARIES_BIN),$(REAL_GNU_TARGET_NAME),$(GNU_TARGET_NAME))
 	touch $@
 
+gcc-configured: $(GCC_BUILD_DIR2)/.configured
+
 gcc: uclibc-configured binutils gcc_initial uclibc $(GCC_BUILD_DIR2)/.installed
 
 gcc-uninstall:
@@ -216,6 +223,7 @@ gcc-clean: gcc-uninstall
 	$(RM) -r $(GCC_BUILD_DIR2)
 
 gcc-dirclean: gcc-clean
+	$(RM) -r $(GCC_DIR)
 
 #############################################################
 #
@@ -224,11 +232,10 @@ gcc-dirclean: gcc-clean
 #############################################################
 GCC_BUILD_DIR3:=$(TARGET_TOOLCHAIN_DIR)/gcc-$(GCC_VERSION)-target
 
-$(GCC_BUILD_DIR3)/.configured: $(GCC_BUILD_DIR2)/.installed $(GCC_TARGET_PREREQ)
+$(GCC_BUILD_DIR3)/.configured: $(GCC_BUILD_DIR2)/.installed $(GCC_TARGET_PREREQ) | binutils_target
 	mkdir -p $(GCC_BUILD_DIR3)
 	(cd $(GCC_BUILD_DIR3); $(RM) config.cache; \
 		$(TARGET_CONFIGURE_ENV) \
-		FREETZ_TARGET_LFS="$(strip $(FREETZ_TARGET_LFS))" \
 		CONFIG_SITE=$(CONFIG_SITE) \
 		\
 		CXX="$(TARGET_MAKE_PATH)/$(TARGET_CROSS)g++" \
@@ -273,6 +280,8 @@ $(TARGET_UTILS_DIR)/usr/bin/gcc: $(GCC_BUILD_DIR3)/.compiled
 	fi
 	touch -c $@
 
+gcc_target-configured: $(GCC_BUILD_DIR3)/.configured
+
 gcc_target: uclibc_target binutils_target $(TARGET_UTILS_DIR)/usr/bin/gcc
 
 gcc_target-uninstall:
@@ -282,9 +291,9 @@ gcc_target-uninstall:
 gcc_target-clean: gcc_target-uninstall
 	$(RM) -r $(GCC_BUILD_DIR3)
 
-gcc_target-dirclean: gcc_target-clean
+gcc_target-dirclean: gcc_target-clean gcc-dirclean
 
 .PHONY: gcc-source gcc-unpacked \
-	gcc_initial gcc_initial-uninstall gcc_initial-clean gcc_initial-dirclean \
-	gcc gcc-uninstall gcc-clean gcc-dirclean \
-	gcc_target gcc_target-uninstall gcc_target-clean gcc_target-dirclean
+	gcc_initial gcc-configured gcc_initial-uninstall gcc_initial-clean gcc_initial-dirclean \
+	gcc gcc_initial-configured gcc-uninstall gcc-clean gcc-dirclean \
+	gcc_target gcc_target-configured gcc_target-uninstall gcc_target-clean gcc_target-dirclean

@@ -33,48 +33,38 @@ else
 DISABLE_NLS:=--disable-nls
 endif
 
-CFLAGS_LFS_ENABLED:=-D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
-CFLAGS_LFS_DISABLED:=-D_FILE_OFFSET_BITS=32
-ifeq ($(strip $(FREETZ_TARGET_LFS)),y)
-DISABLE_LARGEFILE:=
-CFLAGS_LARGEFILE=$(CFLAGS_LFS_ENABLED)
-else
-DISABLE_LARGEFILE:=--disable-largefile
-CFLAGS_LARGEFILE=$(CFLAGS_LFS_DISABLED)
-endif
+TARGET_CROSS:=$(call qstrip,$(FREETZ_TARGET_CROSS))
+KERNEL_CROSS:=$(call qstrip,$(FREETZ_KERNEL_CROSS))
 
 # TODO: investigate if the flags could/should be changed to the commented out ones
 # the current ones correspond to the flags used in Freetz up to r12843
 # binutils-2.25 require "-Wa,...", this however might break compilation of some packages (e.g. libffi)
 TARGET_CFLAGS_ARCH_CPU_TUNE := -march=$(call qstrip,$(FREETZ_GCC_TUNE)) -mtune=$(call qstrip,$(FREETZ_GCC_TUNE))
-TARGET_CFLAGS_FLOAT_ABI     := -m$(call qstrip,$(FREETZ_GCC_FLOAT_ABI))-float
+TARGET_CFLAGS_FLOAT_ABI     := $(if $(call qstrip,$(FREETZ_GCC_FLOAT_ABI)),-m$(call qstrip,$(FREETZ_GCC_FLOAT_ABI))-float)
 #TARGET_CFLAGS_ARCH_CPU_TUNE := -march=$(call qstrip,$(FREETZ_GCC_ARCH)) -mtune=$(call qstrip,$(FREETZ_GCC_TUNE))
-#TARGET_CFLAGS_FLOAT_ABI     := -m$(call qstrip,$(FREETZ_GCC_FLOAT_ABI))-float -Wa,-m$(call qstrip,$(FREETZ_GCC_FLOAT_ABI))-float
-
-FPIC:=-fPIC
-
-TARGET_CROSS:=$(call qstrip,$(FREETZ_TARGET_CROSS))
-KERNEL_ARCH:=mips
-KERNEL_CROSS:=$(call qstrip,$(FREETZ_KERNEL_CROSS))
-
+#TARGET_CFLAGS_FLOAT_ABI     := $(if $(call qstrip,$(FREETZ_GCC_FLOAT_ABI)),-m$(call qstrip,$(FREETZ_GCC_FLOAT_ABI))-float -Wa,-m$(call qstrip,$(FREETZ_GCC_FLOAT_ABI))-float)
 ifneq ($(filter -march=% -mcpu=% -mtune=% -m%-float,$(call qstrip,$(FREETZ_TARGET_CFLAGS))),)
 $(error Please remove any CPU and architecture related flags (-march/-mcpu/-mtune/-m*-float) \
 	from target compiler flags (FREETZ_TARGET_CFLAGS variable in your .config). \
 	These flags are automatically set by freetz build environment now)
 endif
-TARGET_CFLAGS:=$(TARGET_CFLAGS_ARCH_CPU_TUNE) $(TARGET_CFLAGS_FLOAT_ABI) $(call qstrip,$(FREETZ_TARGET_CFLAGS)) $(CFLAGS_LARGEFILE)
+TARGET_CFLAGS_LFS:=-D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
+TARGET_CFLAGS:=$(TARGET_CFLAGS_ARCH_CPU_TUNE) $(TARGET_CFLAGS_FLOAT_ABI) $(call qstrip,$(FREETZ_TARGET_CFLAGS)) $(TARGET_CFLAGS_LFS)
+
+FPIC:=-fPIC
 
 TARGET_SPECIFIC_SUBDIR:=target-$(TARGET_TOOLCHAIN_COMPILER)
 SOURCE_DIR:=$(SOURCE_DIR_ROOT)/$(TARGET_SPECIFIC_SUBDIR)
 PACKAGES_DIR:=$(PACKAGES_DIR_ROOT)/$(TARGET_SPECIFIC_SUBDIR)
 TARGET_SPECIFIC_ROOT_DIR:=$(PACKAGES_DIR)/root
 
+$(SOURCE_DIR) \
 $(PACKAGES_DIR):
 	@mkdir -p $@
 
 # If CONFIG_SITE is exported, it can cause errors in the host builds
 unexport CONFIG_SITE
-CONFIG_SITE:=$(FREETZ_BASE_DIR)/$(INCLUDE_DIR)/site/$(TARGET_ARCH)-linux-uclibc
+CONFIG_SITE:=$(FREETZ_BASE_DIR)/$(INCLUDE_DIR)/site/$(TARGET_ARCH_ENDIANNESS_DEPENDENT)-linux-uclibc
 
 TARGET_AR:=$(TARGET_MAKE_PATH)/$(TARGET_CROSS)ar
 TARGET_AS:=$(TARGET_MAKE_PATH)/$(TARGET_CROSS)as
@@ -170,11 +160,11 @@ TARGET_CONFIGURE_OPTIONS += --sbindir=/usr/sbin
 TARGET_CONFIGURE_OPTIONS += --sysconfdir=/etc
 TARGET_CONFIGURE_OPTIONS += --with-gnu-ld
 TARGET_CONFIGURE_OPTIONS += $(DISABLE_NLS)
-TARGET_CONFIGURE_OPTIONS += $(DISABLE_LARGEFILE)
 
 DL_SITE:=$(call qstrip,$(FREETZ_DL_SITE))
 DL_SOURCE:=$(call qstrip,$(FREETZ_DL_SOURCE))
 DL_SOURCE_MD5:=$(call qstrip,$(FREETZ_DL_SOURCE_MD5))
+export DL_SOURCE_ID=$(shell echo $(DL_SOURCE) | tools/imagename2id)
 
 ifneq ($(strip $(FREETZ_DL_SOURCE_CONTAINER)),)
 DL_SOURCE_CONTAINER:=$(call qstrip,$(FREETZ_DL_SOURCE_CONTAINER))
@@ -300,6 +290,11 @@ PKG_PREVENT_RPATH_HARDCODING__INT = \
 PKG_PREVENT_RPATH_HARDCODING = $(foreach f,$1,$(call PKG_PREVENT_RPATH_HARDCODING__INT,$(f)))
 # 1st level PKG_PREVENT_RPATH_HARDCODING
 PKG_PREVENT_RPATH_HARDCODING1 = $(subst $$$$,$$,$(call PKG_PREVENT_RPATH_HARDCODING,$1))
+
+# Changes a typical Makefile.in line from "FOO = @FOO@" to "FOO = @FOO@ $(EXTRA_FOO)", i.e. adds $(EXTRA_FOO) at the end
+# $1 - variable name or variable names separated by |, i.e. regex OR pattern
+# $2 - optional $($(PKG)_DIR) subdir
+PKG_ADD_EXTRA_FLAGS = find $(abspath $($(PKG)_DIR))$(if $(strip $2),/$(strip $2)) -name Makefile.in -type f -exec $(SED) -i -r -e 's,^($(strip $1))[ \t]*=[ \t]*@\1@,& $$$$(EXTRA_\1),' \{\} \+;
 
 # Change prefix of all $3_cv_* variables in $1 to $(pkg).
 #  $1 is allowed to be a space separated list of variables or a ready to be used sed pattern
@@ -451,6 +446,9 @@ $(PKG)_REBUILD_SUBOPTS=FREETZ_RPATH
 #
 $(PKG)_SOURCE_DIR:=$(SOURCE_DIR)
 $(PKG)_DIR:=$($(PKG)_SOURCE_DIR)/$(pkg)-$($(PKG)_VERSION)
+#
+$(PKG)_TARBALL_STRIP_COMPONENTS:=1
+$(PKG)_TARBALL_INCLUDE_FILTER:=
 #
 $(PKG)_EXCLUDED:=
 #
@@ -657,7 +655,13 @@ $(DL_DIR)/$($(PKG)_SOURCE): | $(DL_DIR)
 		$(call MESSAGE, Found $($(PKG)_SOURCE) in $(MIRROR_DIR), creating hard link); \
 		ln $(MIRROR_DIR)/$($(PKG)_SOURCE) $(DL_DIR); \
 	else \
-		$(DL_TOOL) $(DL_DIR) $($(PKG)_SOURCE) $($(PKG)_SITE) $(or $($(PKG)_SOURCE_SHA512),$($(PKG)_SOURCE_SHA256),$($(PKG)_SOURCE_SHA1),$($(PKG)_SOURCE_MD5)) $(SILENT); \
+		$(DL_TOOL) \
+			$(DL_DIR) \
+			$(if $($(PKG)_SOURCE_DOWNLOAD_NAME),$($(PKG)_SOURCE_DOWNLOAD_NAME),$($(PKG)_SOURCE)) \
+			$($(PKG)_SITE) \
+			$(or $($(PKG)_SOURCE_SHA512),$($(PKG)_SOURCE_SHA256),$($(PKG)_SOURCE_SHA1),$($(PKG)_SOURCE_MD5)) \
+			$(SILENT) \
+			$(if $($(PKG)_SOURCE_DOWNLOAD_NAME),&& mv -f $(DL_DIR)/$($(PKG)_SOURCE_DOWNLOAD_NAME) $(DL_DIR)/$($(PKG)_SOURCE)); \
 	fi
 
 $(pkg)-download: $(DL_DIR)/$($(PKG)_SOURCE)
@@ -667,7 +671,13 @@ $(MIRROR_DIR)/$($(PKG)_SOURCE): | $(MIRROR_DIR)
 		$(call MESSAGE, Found $($(PKG)_SOURCE) in $(DL_DIR), creating hard link); \
 		ln $(DL_DIR)/$($(PKG)_SOURCE) $(MIRROR_DIR); \
 	else \
-		$(DL_TOOL) $(MIRROR_DIR) $($(PKG)_SOURCE) $($(PKG)_SITE) $(or $($(PKG)_SOURCE_SHA512),$($(PKG)_SOURCE_SHA256),$($(PKG)_SOURCE_SHA1),$($(PKG)_SOURCE_MD5)) $(SILENT); \
+		$(DL_TOOL) \
+			$(MIRROR_DIR) \
+			$(if $($(PKG)_SOURCE_DOWNLOAD_NAME),$($(PKG)_SOURCE_DOWNLOAD_NAME),$($(PKG)_SOURCE)) \
+			$($(PKG)_SITE) \
+			$(or $($(PKG)_SOURCE_SHA512),$($(PKG)_SOURCE_SHA256),$($(PKG)_SOURCE_SHA1),$($(PKG)_SOURCE_MD5)) \
+			$(SILENT) \
+			$(if $($(PKG)_SOURCE_DOWNLOAD_NAME),&& mv -f $(DL_DIR)/$($(PKG)_SOURCE_DOWNLOAD_NAME) $(DL_DIR)/$($(PKG)_SOURCE)); \
 	fi
 
 $(pkg)-download-mirror: $(MIRROR_DIR)/$($(PKG)_SOURCE)
@@ -688,7 +698,18 @@ PKG_SOURCE_DOWNLOAD=$(eval $(PKG_SOURCE_DOWNLOAD__INT))
 ### PKG_UNPACK - unpack source archive & apply patches
 # Unpack, without patch, but only if source package is defined
 define PKG_UNPACK
-	$(if $($(PKG)_SOURCE),$(strip $(call $(if $($(PKG)_CUSTOM_UNPACK),$(PKG)_CUSTOM_UNPACK,UNPACK_TARBALL),$(DL_DIR)/$($(PKG)_SOURCE),$($(PKG)_SOURCE_DIR))))
+	$(if $($(PKG)_SOURCE), \
+		$(strip \
+			mkdir -p $($(PKG)_DIR); \
+			$(call \
+				$(if $($(PKG)_CUSTOM_UNPACK),$(PKG)_CUSTOM_UNPACK,UNPACK_TARBALL), \
+				$(DL_DIR)/$($(PKG)_SOURCE), \
+				$($(PKG)_DIR), \
+				$(strip $(filter-out 0,$($(PKG)_TARBALL_STRIP_COMPONENTS))), \
+				$(strip $($(PKG)_TARBALL_INCLUDE_FILTER)) \
+			) \
+		) \
+	)
 endef
 
 ### PKG_PATCH - apply patches
@@ -822,7 +843,6 @@ $($(PKG)_DIR)/.configured: $($(PKG)_DIR)/.build-prereq-checked $($(PKG)_DIR)/.un
 		$(if $(strip $($(PKG)_BUILD_SUBDIR)),cd $(strip $($(PKG)_BUILD_SUBDIR));,) \
 		$(TARGET_CONFIGURE_ENV) \
 		$($(PKG)_CONFIGURE_ENV) \
-		FREETZ_TARGET_LFS="$(strip $(FREETZ_TARGET_LFS))" \
 		CONFIG_SITE=$(CONFIG_SITE) \
 		conf_cmd \
 		$(if $(findstring y,$($(PKG)_CONFIGURE_DEFOPTS)), $(TARGET_CONFIGURE_OPTIONS)) \

@@ -304,7 +304,7 @@ config FREETZ_MODULE_cp2101
 
 config FREETZ_MODULE_cp210x
 	bool "cp210x.ko"
-	depends on FREETZ_KERNEL_VERSION_2_6_32
+	depends on FREETZ_KERNEL_VERSION_2_6_32_MIN
 	select FREETZ_MODULE_usbserial
 	default n
 
@@ -363,6 +363,7 @@ menu "fs"
 
 config FREETZ_MODULE_autofs4
 	bool "autofs4.ko"
+	depends on !FREETZ_AVM_HAS_AUTOFS4_BUILTIN
 	default n
 
 config FREETZ_MODULE_cifs
@@ -463,6 +464,11 @@ config FREETZ_MODULE_nfs
 config FREETZ_MODULE_nls_cp437
 	bool "nls_cp437.ko"
 	depends on !FREETZ_AVM_HAS_NLS_CP437_BUILTIN # && any kernel version
+	default n
+
+config FREETZ_MODULE_nls_cp850
+	bool "nls_cp850.ko"
+	#depends on !FREETZ_AVM_HAS_NLS_CP850_BUILTIN # && any kernel version
 	default n
 
 config FREETZ_MODULE_nls_iso8859_1
@@ -624,6 +630,11 @@ config FREETZ_MODULE_sch_tbf
 
 endmenu
 
+config FREETZ_MODULE_tun
+	bool "tun.ko"
+	depends on !FREETZ_AVM_HAS_TUN_BUILTIN
+	default n
+
 config FREETZ_MODULE_rfcomm
 	bool "rfcomm.ko"
 	select FREETZ_MODULE_l2cap
@@ -642,6 +653,10 @@ config FREETZ_MODULE_sunrpc
 	depends on \
 		FREETZ_KERNEL_VERSION_2_6_13 || \
 		FREETZ_KERNEL_VERSION_2_6_28_MIN
+	default n
+
+config FREETZ_MODULE_wireguard
+	bool "wireguard.ko"
 	default n
 
 endmenu # "net" #

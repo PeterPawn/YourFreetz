@@ -1,0 +1,11 @@
+--- src/help.c
++++ src/help.c
+@@ -274,7 +274,7 @@
+ 		return;
+ 	}
+ 	buildOptionsDisplay();
+-	fprintf(out, commandLine);
++	fprintf(out, "%s", commandLine);
+ 	free(commandLine);
+ 	commandLine = NULL;
+ }

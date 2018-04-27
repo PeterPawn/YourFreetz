@@ -1,6 +1,6 @@
-FAKEROOT_VERSION:=1.20.2
+FAKEROOT_VERSION:=1.22
 FAKEROOT_SOURCE:=fakeroot_$(FAKEROOT_VERSION).orig.tar.bz2
-FAKEROOT_SOURCE_MD5:=a4b4564a75024aa96c86e4d1017ac786
+FAKEROOT_SOURCE_MD5:=fae64c9aeb2c895ead8e1b99bf50c631
 FAKEROOT_SITE:=http://ftp.debian.org/debian/pool/main/f/fakeroot
 
 FAKEROOT_MAKE_DIR:=$(TOOLS_DIR)/make/fakeroot
@@ -16,12 +16,11 @@ FAKEROOT_TARGET_BIARCH_LIB:=$(FAKEROOT_BIARCH_LD_PRELOAD_PATH)/libfakeroot-0.so
 
 # BIARCH means 32-bit libraries on 64-bit hosts
 # We need 32-bit fakeroot support if we use the 32-bit mips*-linux-strip during fwmod on a 64-bit host
-# This doesn't affect sstrip because we build it on the host.
 # The correct condition here would be:
-# (using 32-bit toolchain) AND (any of the STRIP-options is selected) AND (host i 64-bit)
+# (using 32-bit toolchain) AND (any of the STRIP-options is selected) AND (host is 64-bit)
 BIARCH_BUILD_SYSTEM:=$(and \
 	$(or $(FREETZ_DOWNLOAD_TOOLCHAIN),$(FREETZ_TOOLCHAIN_32BIT)), \
-	$(findstring $(shell uname -m),x86_64))
+	$(filter-out 32,$(HOST_BITNESS)))
 
 fakeroot-source: $(DL_DIR)/$(FAKEROOT_SOURCE)
 $(DL_DIR)/$(FAKEROOT_SOURCE): | $(DL_DIR)
@@ -30,8 +29,6 @@ $(DL_DIR)/$(FAKEROOT_SOURCE): | $(DL_DIR)
 fakeroot-unpacked: $(FAKEROOT_DIR)/.unpacked
 $(FAKEROOT_DIR)/.unpacked: $(DL_DIR)/$(FAKEROOT_SOURCE) | $(TOOLS_SOURCE_DIR) $(UNPACK_TARBALL_PREREQUISITES)
 	$(call UNPACK_TARBALL,$(DL_DIR)/$(FAKEROOT_SOURCE),$(TOOLS_SOURCE_DIR))
-	$(SED) -i "s,getopt --version,getopt --version 2>/dev/null," \
-		$(FAKEROOT_DIR)/scripts/fakeroot.in
 	$(call APPLY_PATCHES,$(FAKEROOT_MAKE_DIR)/patches,$(FAKEROOT_DIR))
 	touch $@
 
@@ -52,7 +49,7 @@ $(FAKEROOT_TARGET_SCRIPT): $(FAKEROOT_MAINARCH_DIR)/.configured
 
 $(FAKEROOT_BIARCH_DIR)/.configured: $(FAKEROOT_DIR)/.unpacked
 	(mkdir -p $(FAKEROOT_BIARCH_DIR); cd $(FAKEROOT_BIARCH_DIR); $(RM) config.cache; \
-		CFLAGS="-m32 -O3 -Wall" \
+		CFLAGS="$(HOST_CFLAGS_FORCE_32BIT_CODE) -O3 -Wall" \
 		CC="$(TOOLS_CC)" \
 		../../configure \
 		--prefix=$(FAKEROOT_DESTDIR) \

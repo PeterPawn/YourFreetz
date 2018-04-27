@@ -9,7 +9,7 @@ BINUTILS_MD5_2.22   := ee0f10756c84979622b992a4a61ea3f5
 BINUTILS_MD5_2.23.2 := 4f8fa651e35ef262edc01d60fb45702e
 BINUTILS_MD5_2.24   := e0f71a7b2ddab0f8612336ac81d9636b
 BINUTILS_MD5_2.25.1 := ac493a78de4fee895961d025b7905be4
-BINUTILS_MD5_2.26   := 64146a0faa3b411ba774f47d41de239f
+BINUTILS_MD5_2.26.1 := d2b24e5b5301b7ff0207414c34c3e0fb
 BINUTILS_MD5        := $(BINUTILS_MD5_$(BINUTILS_VERSION))
 
 BINUTILS_EXTRA_MAKE_OPTIONS := MAKEINFO=true
@@ -63,7 +63,7 @@ $(TARGET_TOOLCHAIN_STAGING_DIR)/usr/$(REAL_GNU_TARGET_NAME)/bin/ld: $(BINUTILS_D
 binutils-uninstall:
 	$(RM) $(call TOOLCHAIN_BINARIES_LIST,$(TARGET_TOOLCHAIN_STAGING_DIR)/usr,$(BINUTILS_BINARIES_BIN),$(REAL_GNU_TARGET_NAME))
 	$(RM) $(call TOOLCHAIN_BINARIES_LIST,$(TARGET_TOOLCHAIN_STAGING_DIR)/usr,$(BINUTILS_BINARIES_BIN),$(GNU_TARGET_NAME))
-	$(RM) -r $(TARGET_TOOLCHAIN_STAGING_DIR)/usr/lib/{libiberty*,ldscripts}
+	$(RM) -r $(TARGET_TOOLCHAIN_STAGING_DIR)/usr/lib{,64}/{libiberty*,ldscripts}
 
 binutils-clean: binutils-uninstall
 	$(RM) -r $(BINUTILS_DIR1)
@@ -71,7 +71,7 @@ binutils-clean: binutils-uninstall
 binutils-dirclean: binutils-clean binutils_target-dirclean
 	$(RM) -r $(BINUTILS_DIR)
 
-binutils: uclibc-configured binutils-dependencies $(TARGET_TOOLCHAIN_STAGING_DIR)/usr/$(REAL_GNU_TARGET_NAME)/bin/ld
+binutils: binutils-dependencies $(TARGET_TOOLCHAIN_STAGING_DIR)/usr/$(REAL_GNU_TARGET_NAME)/bin/ld
 
 #############################################################
 #
@@ -84,7 +84,6 @@ $(BINUTILS_DIR2)/.configured: $(BINUTILS_DIR)/.unpacked
 	(cd $(BINUTILS_DIR2); $(RM) config.cache; \
 		CFLAGS_FOR_BUILD="-O2 $(TOOLCHAIN_HOST_CFLAGS)" \
 		$(TARGET_CONFIGURE_ENV) \
-		FREETZ_TARGET_LFS="$(strip $(FREETZ_TARGET_LFS))" \
 		CONFIG_SITE=$(CONFIG_SITE) \
 		$(BINUTILS_DIR)/configure \
 		--prefix=/usr \

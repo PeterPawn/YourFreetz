@@ -143,8 +143,6 @@ endif
 all: step
 world: check-dot-config-uptodateness $(DL_DIR) $(BUILD_DIR) $(KERNEL_TARGET_DIR) $(PACKAGES_DIR_ROOT) $(SOURCE_DIR_ROOT) $(TOOLCHAIN_BUILD_DIR)
 
-include $(TOOLS_DIR)/make/Makefile.in
-
 KCONFIG_TARGETS:=menuconfig menuconfig-single config oldconfig oldnoconfig allnoconfig allyesconfig randconfig listnewconfig config-compress
 
 -include $(TOPDIR)/.config
@@ -171,12 +169,13 @@ endif
 export FREETZ_VERBOSITY_LEVEL
 export VERBOSE
 
+include $(TOOLS_DIR)/make/Makefile.in
+include $(call sorted-wildcard,$(TOOLS_DIR)/make/*/*.mk)
+
 TOOLS_CLEAN:=$(patsubst %,%-clean,$(TOOLS))
 TOOLS_DIRCLEAN:=$(patsubst %,%-dirclean,$(TOOLS))
 TOOLS_DISTCLEAN:=$(patsubst %,%-distclean,$(TOOLS))
 TOOLS_SOURCE:=$(patsubst %,%-source,$(TOOLS))
-
-include $(call sorted-wildcard,$(TOOLS_DIR)/make/*/*.mk)
 
 $(DL_DIR) \
 $(DL_FW_DIR) \
@@ -311,6 +310,7 @@ endif
 		$(if $(call is-y,$(FREETZ_FWMOD_SKIP_UNPACK)),,-u)                                   \
 		$(if $(call is-y,$(FREETZ_FWMOD_SKIP_MODIFY)),,-m)                                   \
 		$(if $(call is-y,$(FREETZ_FWMOD_SKIP_PACK)),,-p)                                     \
+		$(if $(call is-y,$(FREETZ_FWMOD_SIGN)),-s)                                           \
 		$(if $(call is-y,$(FREETZ_FWMOD_USBROOT)),-z)                                        \
 		$(if $(strip $(FREETZ_FWMOD_NFSROOT_DIR)),-c "$(strip $(FREETZ_FWMOD_NFSROOT_DIR))") \
 		$(if $(filter firmware-nocompile,$(MAKECMDGOALS)),-n)                                \
@@ -358,7 +358,7 @@ distclean: $(TOOLCHAIN_DISTCLEAN) $(TOOLS_DISTCLEAN) common-distclean
 
 endif # FREETZ_HAVE_DOT_CONFIG!=y
 
-tools: $(DL_DIR) $(SOURCE_DIR_ROOT) $(TOOLS)
+tools: $(DL_DIR) $(SOURCE_DIR_ROOT) $(filter-out $(TOOLS_CONDITIONAL),$(TOOLS))
 tools-dirclean: $(TOOLS_DIRCLEAN)
 tools-distclean: $(TOOLS_DISTCLEAN)
 

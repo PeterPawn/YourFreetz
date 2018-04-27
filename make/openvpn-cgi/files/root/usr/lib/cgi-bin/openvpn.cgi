@@ -11,7 +11,7 @@ ALLVARS="$MYVARS ENABLED CONFIG_COUNT CONFIG_CHANGED EXPERT"
 #	HASBLOWFISH=$(openvpn --show-ciphers | grep -q BF-CBC && echo true)
 #	HASLZO=$(openvpn --version | grep -q LZO && echo true)
 #else
-	HASBLOWFISH=$([ "$FREETZ_PACKAGE_OPENVPN_POLARSSL" != y -o "$FREETZ_LIB_libpolarssl12_WITH_BLOWFISH" == y ] && echo true)
+	HASBLOWFISH=$([ "$FREETZ_PACKAGE_OPENVPN_WITH_BLOWFISH" == y ] && echo true)
 	HASLZO=$([ "$FREETZ_PACKAGE_OPENVPN_WITH_LZO" == y ] && echo true)
 #fi
 
@@ -209,8 +209,11 @@ cat << EOF
 	</td>
 	<td>
 	  <div id="div_add_tap">
-		<input id="id_act_tap2lan" type="checkbox" title="$(lang de:"Das TAP-Interface wird automatisch zum LAN-Interface gebr&uuml;ckt (brctl)" en:"TAP interface will be bridged to LAN using brctl")" name="my_tap2lan" value="yes" onclick='(local_tap2lan[act_conf]=(this.checked)? "yes" : ""); changeval();'>
-		<label for="id_act_tap2lan">$(lang de:"mit LAN br&uuml;cken" en:"bridge to LAN")</label>
+		<select id="id_act_tap2lan" title="$(lang de:"Das TAP-Interface wird automatisch zum LAN-Interface gebr&uuml;ckt (brctl). LAN-IP ignoriert die eingegebene IP und nutzt die IP des LAN Interfaces" en:"TAP interface will be bridged to LAN using brctl. LAN IP will ignore the local IP and use the IP of the interface lan.")" name="my_tap2lan" onchange='local_tap2lan[act_conf]=this.value; changeval();'>
+		<option value="">$(lang de:"tap nicht br&uuml;cken" en:"don't bridge tap")</option>
+		<option value="yes">$(lang de:"mit LAN br&uuml;cken" en:"bridge to LAN")</option>
+		<option value="uselanip">$(lang de:"br&uuml;cken und LAN-IP nutzen" en:"bridge and use LAN IP")</option>
+		</select>
 	  </div>
 	</td>
 </tr>
@@ -265,6 +268,7 @@ cat << EOF
 	  <select id="id_act_cipher" style="width:150px;" name="my_cipher" onchange='if (this.value=="none") (alert($(lang de:"\"Achtung, Verkehr durch das VPN ist so unverschl\"+unescape(\"%FC\")+\"sselt!\"" en:"\"Caution: All traffic will be unencrypted!\""))); changeval();'>
 		$([ $HASBLOWFISH ] && echo '<option value="BF-CBC">Blowfish</option>')
 		<option value="AES-128-CBC">AES 128</option>
+		<option value="AES-192-CBC">AES 192</option>
 		<option value="AES-256-CBC">AES 256</option>
 		<option value="DES-EDE3-CBC">Triple-DES</option>
 		<option value="none">$(lang de:"unverschl&uuml;sselt" en:"unencrypted")</option>
@@ -649,7 +653,7 @@ alert_cipher = false;
 	if ( local_tls_auth[act_conf] == "yes" ) { document.getElementById("id_act_tls_auth").checked = true } else { document.getElementById("id_act_tls_auth").checked = false };
 	if ( local_debug[act_conf] == "yes" ) { document.getElementById("id_act_debug").checked = true } else { document.getElementById("id_act_debug").checked = false };
 	document.getElementById("id_act_no_certtype").checked = ( local_no_certtype[act_conf] == "yes" ) ? "checked" : ""
-	document.getElementById("id_act_tap2lan").checked = ( local_tap2lan[act_conf] == "yes" ) ? "checked" : ""
+//	document.getElementById("id_act_tap2lan").checked = ( local_tap2lan[act_conf] == "yes" ) ? "checked" : ""
 	if ( local_client_info[act_conf] == "yes" ) { document.getElementById("id_act_client_info").checked = true } else { document.getElementById("id_act_client_info").checked = false };
 
 	if ( local_own_keys[act_conf] != "" ) {
@@ -684,6 +688,7 @@ alert_cipher = false;
 	document.getElementById("id_act_port").value=local_port[act_conf];
 	document.getElementById("id_act_box_ip").value=local_box_ip[act_conf];
 	document.getElementById("id_act_box_mask").value=local_box_mask[act_conf];
+	document.getElementById("id_act_tap2lan").value=local_tap2lan[act_conf];
 	document.getElementById("id_act_remote_ip").value=local_remote_ip[act_conf];
 	document.getElementById("id_act_dhcp_range").value=local_dhcp_range[act_conf];
 	document.getElementById("id_act_local_net").value=local_local_net[act_conf];
@@ -938,7 +943,8 @@ function changeval(value) {
 		}
 
 		if ( document.getElementById("id_act_tap").checked ) {
-			document.getElementById("div_ip_and_net").style.display = "block";
+			document.getElementById("id_act_box_ip").value = ( document.getElementById("id_act_tap2lan").value == "uselanip" ) ? "-- (LAN IP)": local_box_ip[act_conf];
+			document.getElementById("div_ip_and_net").style.display = ( document.getElementById("id_act_tap2lan").value == "uselanip" ) ? "none": "block";
 			document.getElementById("div_ip_loc_rem").style.display = "none";
 		}
 		else {
