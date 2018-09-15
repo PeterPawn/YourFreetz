@@ -187,7 +187,6 @@ GRAPHICS_DIR="${BASE_DIR}/${GRAPHICS_SUBDIR}"
 
 # Freetz branding directories relative to graphics subdirectory
 FAVICON_DIR="${GRAPHICS_DIR}/favicon"
-TAGGING_DIR="${GRAPHICS_DIR}/tagging"
 
 # Package files
 STATIC_PACKAGES_FILE="${BASE_DIR}/.static"
@@ -1291,38 +1290,6 @@ if [ "$DO_MOD" -gt 0 ]; then
 			{ grep '^[^#].*$' "$DOT_CONFIG"; grep '^#.*$' "$DOT_CONFIG.compressed"; echo "FREETZ_LIBRARY_DIR=\"${FREETZ_LIBRARY_DIR}\""; } \
 			| grep -v "FREETZ_FWMOD_SIGN_PRIVATE_KEY_PASSWORD" > "${FILESYSTEM_MOD_DIR}/etc/.config"
 			echo1 "integrated .config (stripped)"
-		fi
-
-		# logo tagging
-		if [ "$FREETZ_TAGGING_STRING" != "none" ]; then
-			tagging() {
-				[ $# -lt 3 ] && return
-				local tagging_geo="$1"
-				shift
-				local tagging_pos="$1"
-				shift
-				local tagging_arg="$*"
-				local tagging_pic="${TAGGING_DIR}/${FREETZ_TAGGING_STRING}.png"
-				for tagging_file in $tagging_arg; do
-					echo2 "${tagging_file}"
-					composite -dissolve 100% -gravity $tagging_pos -geometry $tagging_geo -quality 100 $tagging_pic $tagging_file $tagging_file
-					[ $? -ne 0 ] && error 1 "tagging failed while processing ${tagging_file#${FILESYSTEM_MOD_DIR}/}"
-				done
-			}
-			echo1 "tagging avm webif (tag by ${FREETZ_TAGGING_STRING})"
-			for d in "${HTML_MOD_DIR}" "${HTML_MOD_DIR}.nas"; do
-				[ -d "${d}" ] || continue
-				# lua since  Fritz!OS 6.2x (small logo @left, eg 7390 06.23)
-				tagging "+0+6" "center" $(find "${d}" -name kopfbalken_links.png)
-				# lua before Fritz!OS 6.2x (small logo @left, eg 7270 04.88)
-				tagging "+0+0" "center" $(find "${d}" -name kopfbalken_links.gif)
-				# newer html (big header @top, eg 7320 05.29)
-				tagging "-20+0" "west" $(find "${d}" -name kopfbalken.gif)
-				# older (big header @top, eg 7141 04.76)
-				tagging "+0+0" "west" $(find "${d}" -name fw_header980.gif)
-				# even older (big header @top, eg 7050 04.03)
-				tagging "+0-5" "west" $(find "${d}" -name fw_header.gif)
-			done
 		fi
 
 	fi

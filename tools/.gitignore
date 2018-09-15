@@ -43,3 +43,8 @@
 /xzcat
 /yf
 /zcat
+
+!/make
+!/make/
+!/make/**
+
