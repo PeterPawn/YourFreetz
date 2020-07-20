@@ -21,7 +21,7 @@
  
  	sBlk->compression = comp->id;
  
-@@ -4968,13 +4975,18 @@
+@@ -4968,6 +4975,11 @@
  		} else if(strcmp(argv[i], "-no-duplicates") == 0)
  			duplicate_checking = FALSE;
  
@@ -33,15 +33,6 @@
  		else if(strcmp(argv[i], "-no-fragments") == 0)
  			no_fragments = TRUE;
  
--		 else if(strcmp(argv[i], "-always-use-fragments") == 0)
-+		else if(strcmp(argv[i], "-always-use-fragments") == 0)
- 			always_use_fragments = TRUE;
- 
--		 else if(strcmp(argv[i], "-sort") == 0) {
-+		else if(strcmp(argv[i], "-sort") == 0) {
- 			if(++i == argc) {
- 				ERROR("%s: -sort missing filename\n", argv[0]);
- 				exit(1);
 @@ -5083,6 +5095,10 @@
  				"files larger than block size\n");
  			ERROR("-no-duplicates\t\tdo not perform duplicate "
