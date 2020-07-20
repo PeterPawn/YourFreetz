@@ -1,0 +1,15 @@
+--- squashfs-tools/mksquashfs.c
++++ squashfs-tools/mksquashfs.c
+@@ -4983,10 +4983,10 @@
+ 		else if(strcmp(argv[i], "-no-fragments") == 0)
+ 			no_fragments = TRUE;
+ 
+-		 else if(strcmp(argv[i], "-always-use-fragments") == 0)
++		else if(strcmp(argv[i], "-always-use-fragments") == 0)
+ 			always_use_fragments = TRUE;
+ 
+-		 else if(strcmp(argv[i], "-sort") == 0) {
++		else if(strcmp(argv[i], "-sort") == 0) {
+ 			if(++i == argc) {
+ 				ERROR("%s: -sort missing filename\n", argv[0]);
+ 				exit(1);
