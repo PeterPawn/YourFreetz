@@ -251,7 +251,7 @@ if [ "${FREETZ_SQUASHFS_VERSION}" -eq 3 -a "${FREETZ_AVM_SQUASHFS_COMPRESSION}" 
 	MKSQUASHFS_OPTIONS+=" -lzma1"
 fi
 if [ "${FREETZ_AVM_HAS_SEPARATE_FILESYSTEM_IMAGE}" = "n" -a "${FREETZ_SQUASHFS_VERSION}" -eq 4 ]; then
-	MKSQUASHFS_OPTIONS+=" -avm-strict"
+	"${MKSQUASHFS_TOOL[4]}" -h 2>&1 | grep -q -- -avm-strict 2>/dev/null 1>&2 && MKSQUASHFS_OPTIONS+=" -avm-strict"
 fi
 
 #######################################
