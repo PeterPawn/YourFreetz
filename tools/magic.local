@@ -1,0 +1,71 @@
+# Localstuff: file(1) magic(5) for locally observed files
+#     global magic file is /usr/share/misc/magic(.mgc)
+
+#
+# copy these lines to your local magic database (or any other proper location)
+# for better detection of some files from AVM's firmware images
+#
+0	name	squashfs
+>28	beshort	x	version %d.
+>30	beshort	x	\b%d,
+>28	beshort <4
+>>30	beshort x	compressed,
+#	SquashFS3 images are always compressed
+>>30	beshort <2	zlib
+#	s_minor=76 is AVM/OpenWRT extension to SquashFS3 format, no further compression indicator
+>>30	beshort	76	lzma
+>28	beshort	4
+>>20	beshort 0	uncompressed,
+>>20	beshort >0	compressed,
+>>20	beshort 1	zlib
+>>20	beshort 2	lzma
+>>20	beshort 3	lzo
+>>20	beshort 4	xz
+>>20	beshort 5	lz4
+>>20	beshort	6	zstd
+>28	beshort <3
+>>8	belong	x	%d bytes,
+>28	beshort >2
+>>28	beshort <4
+>>>63	bequad x	%lld bytes,
+>>28	beshort >3
+>>>40	bequad x	%lld bytes,
+>4	belong	x	%d inodes,
+>28	beshort <2
+>>32	beshort	x	blocksize: %d bytes,
+>28	beshort >1
+>>28	beshort <4
+>>>51	belong	x	blocksize: %d bytes,
+>>28	beshort >3
+>>>12	belong	x	blocksize: %d bytes,
+>28	beshort <4
+>>39	bedate	x	created: %s
+>28	beshort >3
+>>8	bedate	x	created: %s
+
+
+0	name	avmwrapper
+# magic, AVM uses ext2 only
+>0x438		beshort	0x53EF	ext2 image data
+>>0x410		lelong	x	\b, inodes (free/all) %d/
+>>0x400		lelong	x	\b%d
+>>0x40c		lelong	x	\b, blocks (free/all) %d/
+>>0x404		lelong	x	\b%d
+>>0x430		ledate	x	\b, written: %s
+>>0x42c		ledate	x	\b, mounted: %s
+>>0x43a		leshort 1	\b, clean
+>>0x43a		leshort 2	\b, has errors
+>>0x440		ledate	x	\b, checked: %s
+
+0	string	sqsh
+#	_major=s_minor=0 (checked with one step as 'long' value) is AVM's wrapper FS, ext2 image starts from offset 256
+>28	belong 	0	AVM, wrapper filesystem,
+>>256	use	avmwrapper
+# 	others are really SquashFS BE images 	
+>28	belong 	>0	Squashfs filesystem, big endian,
+>>0	use	squashfs
+
+#	I never saw a wrapper with LE signature, no needs to prepare for this.
+0	string	hsqs	Squashfs filesystem, little endian,
+>0	use	\^squashfs
+
