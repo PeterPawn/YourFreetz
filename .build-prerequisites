@@ -19,12 +19,24 @@
 			sed
 			sort
 			tar
-			unzip
-			xz
 		-w	bison
 		-w	composite
 		-w	flex
 		-w	bc
+--decompressor		unzip
+			gunzip
+			bunzip2
+			unlzma
+			lunzip
+			unxz
+			uncompress
+--compressor		gzip
+			xz
+			bzip2
+--checksum		md5sum
+			sha1sum
+			sha256sum
+			sha512sum
 --header		ncurses.h
 			zlib.h
 			sys/acl.h

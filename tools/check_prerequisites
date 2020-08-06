@@ -7,7 +7,7 @@ error() {
 }
 
 check_program() {
-	which $1 > /dev/null 2>&1 && [ -x $(which $1) ]
+	command -v $1 > /dev/null 2>&1
 	return $?
 }
 
@@ -80,7 +80,7 @@ while [ $# -gt 0 ]; do
 			parser=lib
 			warn=false
 			;;
-		-p|--program)
+		-p|--program|--decompressor|--compressor|--checksum)
 			parser=program
 			warn=false
 			;;
