@@ -3,9 +3,14 @@ $(PKG)_SOURCE:=$(pkg)-$($(PKG)_VERSION).tar.xz
 $(PKG)_SOURCE_SHA256:=859f1cc070450bf6eb4d319ffcb6a5ac29deb0ac0d81559fb2e71242b1176d46
 $(PKG)_SITE:=ftp://ftp.midnight-commander.org/pub/midnightcommander
 
+$(PKG)_PREFIX_DIR := $(FREETZ_PACKAGE_MC_PREFIX)
+ifeq ($(strip $(FREETZ_PACKAGE_MC_PREFIX)),"")
+$(PKG)_PREFIX_DIR := /usr
+endif
+
 $(PKG)_BINARY:=$($(PKG)_DIR)/src/mc
-$(PKG)_TARGET_BINARY:=$($(PKG)_DEST_DIR)/usr/bin/mc
-$(PKG)_TARGET_CONS_SAVER_BINARY:=$($(PKG)_DEST_DIR)/usr/lib/mc/cons.saver
+$(PKG)_TARGET_BINARY:=$($(PKG)_DEST_DIR)$($(PKG)_PREFIX_DIR)/bin/mc
+$(PKG)_TARGET_CONS_SAVER_BINARY:=$($(PKG)_DEST_DIR)$($(PKG)_PREFIX_DIR)/lib/mc/cons.saver
 
 $(PKG)_DEPENDS_ON += ncurses-terminfo glib2
 
@@ -33,7 +38,6 @@ endif
 
 $(PKG)_CONFIGURE_PRE_CMDS += $(call PKG_PREVENT_RPATH_HARDCODING,./configure)
 $(PKG)_CONFIGURE_OPTIONS += --disable-rpath
-
 $(PKG)_CONFIGURE_OPTIONS += --disable-silent-rules
 $(PKG)_CONFIGURE_OPTIONS += --without-x
 $(PKG)_CONFIGURE_OPTIONS += --without-gpm-mouse
@@ -43,10 +47,16 @@ $(PKG)_CONFIGURE_OPTIONS += --disable-doxygen-dot
 $(PKG)_CONFIGURE_OPTIONS += --disable-doxygen-html
 $(PKG)_CONFIGURE_OPTIONS += --disable-mclib
 $(PKG)_CONFIGURE_OPTIONS += --disable-tests
-
 $(PKG)_CONFIGURE_OPTIONS += --with-search-engine=glib
 
-$(PKG)_CONFIGURE_OPTIONS += --sysconfdir=/usr/share
+$(PKG)_CONFIGURE_OPTIONS += --prefix=$($(PKG)_PREFIX_DIR)
+$(PKG)_CONFIGURE_OPTIONS += --exec-prefix=$($(PKG)_PREFIX_DIR)
+$(PKG)_CONFIGURE_OPTIONS += --bindir=$($(PKG)_PREFIX_DIR)/bin
+$(PKG)_CONFIGURE_OPTIONS += --datadir=$($(PKG)_PREFIX_DIR)/share
+$(PKG)_CONFIGURE_OPTIONS += --libdir=$($(PKG)_PREFIX_DIR)/lib
+$(PKG)_CONFIGURE_OPTIONS += --libexecdir=$($(PKG)_PREFIX_DIR)/lib
+$(PKG)_CONFIGURE_OPTIONS += --sbindir=$($(PKG)_PREFIX_DIR)/sbin
+$(PKG)_CONFIGURE_OPTIONS += --sysconfdir=$($(PKG)_PREFIX_DIR)/share
 
 $(PKG)_ENDIS_OPTIONS          := background charset vfs vfs-cpio vfs-extfs vfs-ftp vfs-sfs vfs-tar vfs-fish vfs-sftp vfs-smb vfs-undelfs
 $(PKG)_ENDIS_OPTIONS_ENABLED  := $(call PKG_SELECTED_SUBOPTIONS,$($(PKG)_ENDIS_OPTIONS),WITH)

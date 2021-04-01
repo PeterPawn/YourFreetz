@@ -1,0 +1,6 @@
+[submodule "decoder"]
+	path = make/decoder
+	url = https://github.com/PeterPawn/decoder.git
+[submodule "privatekeypassword"]
+	path = make/privatekeypassword
+	url = https://github.com/PeterPawn/privatekeypassword.git

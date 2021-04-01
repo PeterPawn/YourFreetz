@@ -1,15 +1,50 @@
 --- squashfs-tools/mksquashfs.c
 +++ squashfs-tools/mksquashfs.c
-@@ -4461,6 +4461,9 @@
+@@ -109,6 +109,9 @@
+ int use_regex = FALSE;
+ int nopad = FALSE;
+ int exit_on_error = FALSE;
++#if (TARGET_FORMAT == AVM_BE || TARGET_FORMAT == AVM_LE)
++int use_all_avm_changes_to_standard_format = FALSE;
++#endif
+ 
+ long long global_uid = -1, global_gid = -1;
+ 
+@@ -4461,6 +4464,10 @@
  			sBlk->lookup_table_start);
  
  	sBlk->bytes_used = bytes;
 +#if (TARGET_FORMAT == AVM_BE || TARGET_FORMAT == AVM_LE)
-+	sBlk->mkfs_time = (int) sBlk->bytes_used;
++	if (use_all_avm_changes_to_standard_format)
++		sBlk->mkfs_time = (int) sBlk->bytes_used;
 +#endif
  
  	sBlk->compression = comp->id;
  
+@@ -4968,6 +4975,11 @@
+ 		} else if(strcmp(argv[i], "-no-duplicates") == 0)
+ 			duplicate_checking = FALSE;
+ 
++#if (TARGET_FORMAT == AVM_BE || TARGET_FORMAT == AVM_LE)
++		else if(strcmp(argv[i], "-avm-strict") == 0)
++			use_all_avm_changes_to_standard_format = TRUE;
++#endif
++
+ 		else if(strcmp(argv[i], "-no-fragments") == 0)
+ 			no_fragments = TRUE;
+ 
+@@ -5083,6 +5095,10 @@
+ 				"files larger than block size\n");
+ 			ERROR("-no-duplicates\t\tdo not perform duplicate "
+ 				"checking\n");
++#if (TARGET_FORMAT == AVM_BE || TARGET_FORMAT == AVM_LE)
++			ERROR("-avm-strict\t\tuse custom AVM format strictly"
++				"\n");
++#endif
+ 			ERROR("-all-root\t\tmake all files owned by root\n");
+ 			ERROR("-force-uid uid\t\tset all file uids to uid\n");
+ 			ERROR("-force-gid gid\t\tset all file gids to gid\n");
+
 --- squashfs-tools/unsquashfs.c
 +++ squashfs-tools/unsquashfs.c
 @@ -1626,8 +1626,21 @@
